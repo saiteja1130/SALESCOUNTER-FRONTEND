@@ -1,0 +1,6 @@
+{
+  "name": "Conversly AI - WhatsApp AI Sales Assistant",
+  "description": "Premium WhatsApp AI Sales Assistant SaaS platform for managing WhatsApp leads, training AI assistants, coordinating salespeople, scheduling follow-ups, and tracking sales conversions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
