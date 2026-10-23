@@ -1,4 +1,3 @@
-import { Fragment } from "react/jsx-runtime";
 import { useState } from "react";
 const DATA_BY_RANGE = {
   today: {

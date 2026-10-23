@@ -121,7 +121,126 @@ const TestChatModal = ({ isOpen, onClose }) => {
       }
     ]);
   };
-  return  <Modal isOpe={isOpen} onClos={onClose} title={"Test Your Sales AI (Simulation Sandbox)"} description={"Test sample customer conversations and inspect which rules, catalog items, or guidelines shaped each response."} maxWidth={"2xl"} footer={<div className={"flex items-center justify-between w-full"}>{<button onClick={handleReset} className={"flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 cursor-pointer"}>{<RefreshCw className={"w-3.5 h-3.5"} />}{<span>Reset Test Conversation</span>}</button>}{<Button size={"sm"} onClick={onClose}>Close Sandbox</Button>}</div>}>{<div className={"space-y-3.5"}>{<div className={"bg-emerald-50 border border-emerald-200/90 rounded-xl p-3 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2"}>{<div className={"flex items-center gap-2"}>{<span className={"w-2 h-2 rounded-full bg-emerald-600 animate-pulse"} />}{<span>Testing as: {<strong>{aiConfig.agentName || "Elena Vance"}</strong>} ({aiConfig.agentRole || "Sales Advisor"})</span>}</div>}{<span className={"text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md self-start sm:self-auto"}>Interactive Rule Inspector Active</span>}</div>}{<div>{<span className={"text-[11px] font-semibold text-slate-500 block mb-1.5"}>Test with common customer questions:</span>}{<div className={"flex flex-wrap gap-1.5"}>{sampleScenarios.map((s) =>  <button onClick={() => handleSend(s.text)} className={"text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"}>{s.label}</button>)}</div>}</div>}{<div className={"h-80 overflow-y-auto bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-3"}>{messages.map((m) =>  <div className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}>{<div className={`max-w-[88%] rounded-2xl p-3 text-xs shadow-2xs ${m.sender === "user" ? "bg-emerald-700 text-white rounded-br-xs" : "bg-white text-slate-900 border border-slate-200/90 rounded-bl-xs space-y-2"}`}>{<div className={"font-semibold text-[11px] opacity-80 flex items-center justify-between gap-3"}>{<span className={"flex items-center gap-1"}>{m.sender === "ai" ?  <Bot className={"w-3.5 h-3.5 text-emerald-600"} /> :  <User className={"w-3.5 h-3.5"} />}{<span>{m.sender === "ai" ? aiConfig.agentName || "Conversly AI" : "Prospect (You)"}</span>}</span>}{<span className={"text-[10px] opacity-70 tabular-nums"}>{m.timestamp}</span>}</div>}{<p className={"leading-relaxed text-xs sm:text-sm"}>{m.text}</p>}{m.sender === "ai" && m.feedback &&  <div className={"mt-2 pt-2 border-t border-slate-100 bg-slate-50/80 -mx-3 -mb-3 p-2.5 rounded-b-xl text-[11px]"}>{<div className={"flex items-center gap-1.5 font-semibold text-emerald-800 mb-0.5"}>{<Zap className={"w-3 h-3 text-emerald-600 shrink-0"} />}{<span>{m.feedback.title}</span>}</div>}{<p className={"text-slate-500 leading-snug"}>{m.feedback.explanation}</p>}</div>}</div>}</div>)}{isThinking &&  <div className={"flex items-center gap-2 text-xs text-slate-500 italic p-2 bg-white rounded-xl border border-slate-200 w-fit"}>{<Sparkles className={"w-3.5 h-3.5 animate-spin text-emerald-600"} />}{<span>AI checking rules and knowledge base...</span>}</div>}</div>}{<div className={"flex gap-2"}>{<input type={"text"} placeholder={"Type a custom customer question (e.g. Can you ship to Miami?)..."} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} className={"flex-1 text-xs sm:text-sm rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600"} />}{<Button size={"sm"} onClick={() => handleSend()} disabled={!input.trim()} className={"bg-emerald-600 hover:bg-emerald-700 text-white"}>{<Send className={"w-4 h-4"} />}</Button>}</div>}</div>}</Modal>;
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Test Your Sales AI (Simulation Sandbox)"
+      description="Test sample customer conversations and inspect which rules, catalog items, or guidelines shaped each response."
+      maxWidth="2xl"
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Reset Test Conversation</span>
+          </button>
+          <Button size="sm" onClick={onClose}>
+            Close Sandbox
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-3.5">
+        <div className="bg-emerald-50 border border-emerald-200/90 rounded-xl p-3 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+            <span>
+              Testing as: <strong>{aiConfig.agentName || "Elena Vance"}</strong> (
+              {aiConfig.agentRole || "Sales Advisor"})
+            </span>
+          </div>
+          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md self-start sm:self-auto">
+            Interactive Rule Inspector Active
+          </span>
+        </div>
+        <div>
+          <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
+            Test with common customer questions:
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {sampleScenarios.map((s, idx) => (
+              <button
+                key={s.label || idx}
+                onClick={() => handleSend(s.text)}
+                className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="h-80 overflow-y-auto bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-3">
+          {messages.map((m, idx) => (
+            <div
+              key={m.id || idx}
+              className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}
+            >
+              <div
+                className={`max-w-[88%] rounded-2xl p-3 text-xs shadow-2xs ${m.sender === "user" ? "bg-emerald-700 text-white rounded-br-xs" : "bg-white text-slate-900 border border-slate-200/90 rounded-bl-xs space-y-2"}`}
+              >
+                <div className="font-semibold text-[11px] opacity-80 flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-1">
+                    {m.sender === "ai" ? (
+                      <Bot className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <User className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {m.sender === "ai"
+                        ? aiConfig.agentName || "Conversly AI"
+                        : "Prospect (You)"}
+                    </span>
+                  </span>
+                  <span className="text-[10px] opacity-70 tabular-nums">
+                    {m.timestamp}
+                  </span>
+                </div>
+                <p className="leading-relaxed text-xs sm:text-sm">{m.text}</p>
+                {m.sender === "ai" && m.feedback && (
+                  <div className="mt-2 pt-2 border-t border-slate-100 bg-slate-50/80 -mx-3 -mb-3 p-2.5 rounded-b-xl text-[11px]">
+                    <div className="flex items-center gap-1.5 font-semibold text-emerald-800 mb-0.5">
+                      <Zap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{m.feedback.title}</span>
+                    </div>
+                    <p className="text-slate-500 leading-snug">
+                      {m.feedback.explanation}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {isThinking && (
+            <div className="flex items-center gap-2 text-xs text-slate-500 italic p-2 bg-white rounded-xl border border-slate-200 w-fit">
+              <Sparkles className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+              <span>AI checking rules and knowledge base...</span>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Type a custom customer question (e.g. Can you ship to Miami?)..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            className="flex-1 text-xs sm:text-sm rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600"
+          />
+          <Button
+            size="sm"
+            onClick={() => handleSend()}
+            disabled={!input.trim()}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
 };
 export {
   TestChatModal

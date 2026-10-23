@@ -1,3 +1,4 @@
+import React from "react";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
 import { AlertTriangle } from "lucide-react";
@@ -14,33 +15,29 @@ const ConfirmDialog = ({
 }) => {
   return (
     <Modal
-      isOpe={isOpen}
-      onClos={onClose}
-      titl={title}
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
       maxWidth={"sm"}
       footer={
-        <Fragment>
-          {
-            <Button
-              variant={"outline"}
-              size={"sm"}
-              onClick={onClose}
-              disabled={isLoading}
-            >
-              {cancelLabel}
-            </Button>
-          }
-          {
-            <Button
-              variant={isDestructive ? "danger" : "primary"}
-              size={"sm"}
-              onClick={onConfirm}
-              isLoadin={isLoading}
-            >
-              {confirmLabel}
-            </Button>
-          }
-        </Fragment>
+        <>
+          <Button
+            variant={"outline"}
+            size={"sm"}
+            onClick={onClose}
+            disabled={isLoading}
+          >
+            {cancelLabel}
+          </Button>
+          <Button
+            variant={isDestructive ? "danger" : "primary"}
+            size={"sm"}
+            onClick={onConfirm}
+            isLoading={isLoading}
+          >
+            {confirmLabel}
+          </Button>
+        </>
       }
     >
       {

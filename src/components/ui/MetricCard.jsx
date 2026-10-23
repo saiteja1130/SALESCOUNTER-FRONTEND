@@ -10,7 +10,7 @@ const MetricCard = ({
 }) => {
   return (
     <div
-      onClic={onClick}
+      onClick={onClick}
       role={onClick ? "button" : void 0}
       tabIndex={onClick ? 0 : void 0}
       aria-label={ariaLabel || (onClick ? `View ${label}` : void 0)}
