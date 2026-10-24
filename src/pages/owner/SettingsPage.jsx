@@ -21,7 +21,15 @@ import {
   Info,
   CheckCircle2,
   LogOut,
+  Plus,
+  Trash2,
+  QrCode,
+  RefreshCw,
+  Phone,
+  Radio,
 } from "lucide-react";
+import { whatsappApi } from "../../api/whatsapp";
+import { getSocket } from "../../utils/socket";
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
@@ -42,10 +50,116 @@ export const SettingsPage = () => {
     scheduledFollowUps,
     campaigns,
     aiConfig,
+    whatsappConnections,
+    fetchWhatsAppConnections,
+    isWhatsAppLoading,
   } = useApp();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState("profile");
+  const [activeQrModal, setActiveQrModal] = useState(null);
+  const [activeQrDataUrl, setActiveQrDataUrl] = useState(null);
+  const [activeQrExpiresAt, setActiveQrExpiresAt] = useState(null);
+  const [newConnModalOpen, setNewConnModalOpen] = useState(false);
+  const [newConnName, setNewConnName] = useState("");
+  const [isCreatingConn, setIsCreatingConn] = useState(false);
+  const [connActionLoading, setConnActionLoading] = useState(null);
+
+  // Real-time socket listener for live QR stream and connection status
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleQrUpdate = (data) => {
+      if (activeQrModal && data.connectionId === activeQrModal._id) {
+        if (data.qrDataUrl) {
+          setActiveQrDataUrl(data.qrDataUrl);
+        }
+        if (data.expiresAt) {
+          setActiveQrExpiresAt(data.expiresAt);
+        }
+      }
+    };
+
+    const handleStatus = (data) => {
+      if (activeQrModal && data.connectionId === activeQrModal._id && data.status === "connected") {
+        setActiveQrModal(null);
+        setActiveQrDataUrl(null);
+        showToast("WhatsApp device linked successfully!", "success");
+      }
+    };
+
+    socket.on("whatsapp:qr_updated", handleQrUpdate);
+    socket.on("whatsapp:connection_status", handleStatus);
+
+    return () => {
+      socket.off("whatsapp:qr_updated", handleQrUpdate);
+      socket.off("whatsapp:connection_status", handleStatus);
+    };
+  }, [activeQrModal, showToast]);
+
+  const handleStartConnection = async (conn) => {
+    try {
+      setConnActionLoading(conn._id);
+      setActiveQrModal(conn);
+      setActiveQrDataUrl(null);
+      await whatsappApi.startConnection(conn._id);
+      showToast("Initializing WhatsApp session. Loading QR code...", "info");
+
+      const statusRes = await whatsappApi.getConnectionStatus(conn._id);
+      if (statusRes?.qrDataUrl) {
+        setActiveQrDataUrl(statusRes.qrDataUrl);
+        setActiveQrExpiresAt(statusRes.qrExpiresAt);
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to start WhatsApp connection", "error");
+      setActiveQrModal(null);
+    } finally {
+      setConnActionLoading(null);
+    }
+  };
+
+  const handleDisconnectConnection = async (conn) => {
+    try {
+      setConnActionLoading(conn._id);
+      await whatsappApi.disconnectConnection(conn._id);
+      showToast("WhatsApp line disconnected", "info");
+      fetchWhatsAppConnections();
+    } catch (err) {
+      showToast(err.message || "Failed to disconnect", "error");
+    } finally {
+      setConnActionLoading(null);
+    }
+  };
+
+  const handleRemoveConnection = async (conn) => {
+    try {
+      setConnActionLoading(conn._id);
+      await whatsappApi.removeConnection(conn._id);
+      showToast("WhatsApp line removed", "success");
+      fetchWhatsAppConnections();
+    } catch (err) {
+      showToast(err.message || "Failed to remove connection", "error");
+    } finally {
+      setConnActionLoading(null);
+    }
+  };
+
+  const handleCreateConnection = async (e) => {
+    e.preventDefault();
+    if (!newConnName.trim()) return;
+    try {
+      setIsCreatingConn(true);
+      await whatsappApi.createConnection({ displayName: newConnName.trim() });
+      showToast("WhatsApp connection line created", "success");
+      setNewConnModalOpen(false);
+      setNewConnName("");
+      fetchWhatsAppConnections();
+    } catch (err) {
+      showToast(err.message || "Failed to create connection line", "error");
+    } finally {
+      setIsCreatingConn(false);
+    }
+  };
   const [profileName, setProfileName] = useState(currentUser.name);
   const [profileEmail, setProfileEmail] = useState(currentUser.email);
   const [profilePhone, setProfilePhone] = useState(currentUser.phone || "");
@@ -505,19 +619,9 @@ export const SettingsPage = () => {
       {/* Integrations Tab */}
       {isOwner && activeTab === "integrations" && (
         <div className="space-y-5 max-w-3xl">
-          <div className="p-4 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold text-xs">Demonstration Sandbox Environment</p>
-              <p className="text-xs leading-relaxed text-blue-800/95">
-                The WhatsApp Webhook Bridge and Google Gemini API below run in client-side demonstration mode with simulated responses. Actions simulate linking hardware and testing model latency without calling external live endpoints.
-              </p>
-            </div>
-          </div>
-
-          {/* WhatsApp Gateway Card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-xs">
-            <div className="flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">
+          {/* WhatsApp Business Lines Management Card */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5 shadow-xs">
+            <div className="flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
                   <Smartphone className="w-5 h-5" />
@@ -525,52 +629,169 @@ export const SettingsPage = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-slate-900">
-                      WhatsApp Business Gateway
+                      WhatsApp Business Lines
                     </h3>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                      Demo Simulation
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Baileys Live Gateway
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Simulates real-time inbound chat events and webhook dispatch.
+                    Connect multiple physical or business WhatsApp accounts. Auto-generates CRM leads and AI sales replies.
                   </p>
                 </div>
               </div>
-              <span
-                className={`text-xs font-semibold px-2.5 py-1 rounded-md border self-start sm:self-center ${
-                  qrConnected
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                    : "bg-amber-50 text-amber-800 border-amber-200"
-                }`}
-              >
-                {qrConnected ? "Simulated Sandbox Linked" : "Simulated Disconnected"}
-              </span>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div>
-                <div className="font-semibold text-slate-800">
-                  Apple iPhone 15 Pro · WhatsApp Business Cloud Mock v24.2
-                </div>
-                <div className="text-slate-500 mt-0.5">
-                  Simulated Gateway: +1 (555) 839-2041 · Sandbox Bridge Active · Mock Webhooks Enabled
-                </div>
-              </div>
               <Button
-                variant={qrConnected ? "outline" : "primary"}
+                variant="primary"
                 size="sm"
-                onClick={() => {
-                  setQrConnected(!qrConnected);
-                  showToast(
-                    !qrConnected
-                      ? "WhatsApp mock gateway linked (simulation mode)"
-                      : "WhatsApp mock gateway unlinked"
-                  );
-                }}
+                onClick={() => setNewConnModalOpen(true)}
               >
-                {qrConnected ? "Disconnect Mock Gateway" : "Simulate Connect"}
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add Phone Line
               </Button>
             </div>
+
+            {/* Connection Slots List */}
+            {isWhatsAppLoading && whatsappConnections.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
+                Loading WhatsApp connections...
+              </div>
+            ) : whatsappConnections.length === 0 ? (
+              <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl space-y-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-800">No WhatsApp Lines Connected</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-0.5">
+                    Add your first WhatsApp line to link your device via QR scan and start receiving customer inquiries directly into Conversly CRM.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => setNewConnModalOpen(true)}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Create First Line Slot
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {whatsappConnections.map((conn) => {
+                  const isConnConnected = conn.status === "connected";
+                  const isQrPending = conn.status === "qr_pending";
+                  const isReconnecting = conn.status === "reconnecting";
+                  const isLoggedOut = conn.status === "logged_out";
+                  const isLoading = connActionLoading === conn._id;
+
+                  return (
+                    <div
+                      key={conn._id}
+                      className="p-4 bg-slate-50/70 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs transition-colors hover:border-slate-300"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900 text-sm">
+                            {conn.displayName || "WhatsApp Business Line"}
+                          </span>
+
+                          {/* Status Badge */}
+                          {isConnConnected ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Live Connected
+                            </span>
+                          ) : isQrPending ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              Scan QR with Phone
+                            </span>
+                          ) : isReconnecting ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                              <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
+                              Reconnecting...
+                            </span>
+                          ) : isLoggedOut ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+                              Logged Out (Re-link required)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200 text-slate-700">
+                              Disconnected
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-slate-500 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
+                          {conn.linkedPhone ? (
+                            <span className="font-medium text-slate-700">
+                              +{conn.linkedPhone}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">No device linked</span>
+                          )}
+                          {conn.linkedName && (
+                            <span className="text-slate-500">
+                              Device: {conn.linkedName}
+                            </span>
+                          )}
+                          {conn.connectedAt && isConnConnected && (
+                            <span className="text-slate-400">
+                              Connected: {new Date(conn.connectedAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-center">
+                        {isConnConnected ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={() => handleDisconnectConnection(conn)}
+                          >
+                            Disconnect Line
+                          </Button>
+                        ) : isQrPending ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={() => handleStartConnection(conn)}
+                          >
+                            <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                            View QR Code
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={() => handleStartConnection(conn)}
+                          >
+                            <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                            Link WhatsApp Device
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={isLoading}
+                          onClick={() => handleRemoveConnection(conn)}
+                          className="text-slate-400 hover:text-rose-600 p-1.5"
+                          title="Delete Connection Slot"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Gemini API Key Card */}
@@ -771,6 +992,114 @@ export const SettingsPage = () => {
             Choose <strong>Stay on Page</strong> to save your changes, or <strong>Discard Changes</strong> to proceed without saving.
           </p>
         </div>
+      </Modal>
+
+      {/* WhatsApp QR Code Pairing Modal */}
+      <Modal
+        isOpen={Boolean(activeQrModal)}
+        onClose={() => {
+          setActiveQrModal(null);
+          setActiveQrDataUrl(null);
+        }}
+        title={`Link WhatsApp: ${activeQrModal?.displayName || "Business Line"}`}
+        maxWidth="md"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live session listening for QR scan
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setActiveQrModal(null);
+                setActiveQrDataUrl(null);
+              }}
+            >
+              Close
+            </Button>
+          </div>
+        }
+      >
+        <div className="text-center space-y-4 py-2">
+          {activeQrDataUrl ? (
+            <div className="space-y-3">
+              <div className="inline-block p-3 bg-white rounded-2xl border border-slate-200 shadow-md">
+                <img
+                  src={activeQrDataUrl}
+                  alt="WhatsApp Pairing QR Code"
+                  className="w-60 h-60 mx-auto rounded-lg"
+                />
+              </div>
+              <div className="space-y-1 text-xs text-slate-600 max-w-sm mx-auto">
+                <p className="font-semibold text-slate-800">Scan with WhatsApp on your phone:</p>
+                <ol className="text-left list-decimal list-inside space-y-0.5 text-slate-500 text-[11px] bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                  <li>Open <strong>WhatsApp</strong> on your phone</li>
+                  <li>Tap <strong>Settings</strong> or <strong>Menu (⋮)</strong> &gt; <strong>Linked Devices</strong></li>
+                  <li>Tap <strong>Link a Device</strong> and point your camera at this QR code</li>
+                </ol>
+                <p className="text-[11px] text-slate-400 pt-1">
+                  QR code refreshes automatically for security.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="py-12 space-y-3 text-center">
+              <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
+              <div>
+                <p className="text-xs font-semibold text-slate-800">Generating Secure WhatsApp Session...</p>
+                <p className="text-[11px] text-slate-400">Initiating Baileys handshake and requesting QR authentication stream.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Add New WhatsApp Connection Line Modal */}
+      <Modal
+        isOpen={newConnModalOpen}
+        onClose={() => setNewConnModalOpen(false)}
+        title="Add WhatsApp Business Line Slot"
+        maxWidth="md"
+      >
+        <form onSubmit={handleCreateConnection} className="space-y-4">
+          <Input
+            label="Phone Line Label / Description"
+            value={newConnName}
+            onChange={(e) => setNewConnName(e.target.value)}
+            placeholder="e.g. Primary Sales Channel, VIP Inbound, Support Line"
+            helper="Name this connection slot to identify it across team round-robin routing and CRM messages."
+            required
+            autoFocus
+          />
+
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-500 space-y-1">
+            <p className="font-medium text-slate-700">How phone linking works:</p>
+            <p>
+              Creating a slot reserves your subscription capacity. Once created, click <strong>Link WhatsApp Device</strong> to scan the pairing QR code with your phone.
+            </p>
+          </div>
+
+          <div className="flex gap-2 justify-end pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setNewConnModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!newConnName.trim() || isCreatingConn}
+            >
+              {isCreatingConn ? "Creating Slot..." : "Create Line Slot"}
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

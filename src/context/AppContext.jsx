@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { apiClient } from "../api/client";
+import { whatsappApi } from "../api/whatsapp";
+import { getSocket } from "../utils/socket";
 
 const AppContext = createContext(undefined);
 
@@ -279,13 +281,104 @@ const AppProvider = ({ children }) => {
     }
   }, [isAuthenticated]);
 
+  const [whatsappConnections, setWhatsappConnections] = useState([]);
+  const [isWhatsAppLoading, setIsWhatsAppLoading] = useState(false);
+
+  const fetchWhatsAppConnections = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWhatsappConnections([]);
+      return;
+    }
+    try {
+      setIsWhatsAppLoading(true);
+      const res = await whatsappApi.getConnections();
+      if (res?.success && Array.isArray(res.connections)) {
+        setWhatsappConnections(res.connections);
+        const anyConnected = res.connections.some((c) => c.status === "connected");
+        setQrConnectedState(anyConnected);
+      }
+    } catch {
+      // Backend offline or starting up
+    } finally {
+      setIsWhatsAppLoading(false);
+    }
+  }, [isAuthenticated]);
+
   useEffect(() => {
     refreshUsage();
     fetchLeads();
     fetchTeamMembers();
     fetchAiConfig();
     fetchFollowUps();
-  }, [refreshUsage, fetchLeads, fetchTeamMembers, fetchAiConfig, fetchFollowUps]);
+    fetchWhatsAppConnections();
+  }, [refreshUsage, fetchLeads, fetchTeamMembers, fetchAiConfig, fetchFollowUps, fetchWhatsAppConnections]);
+
+  const fetchMessages = useCallback(async (leadId) => {
+    if (!isAuthenticated || !leadId) return;
+    try {
+      const res = await apiClient.get(`/leads/${leadId}/messages`);
+      if (res?.success && Array.isArray(res.messages)) {
+        setMessages((prev) => ({
+          ...prev,
+          [leadId]: res.messages,
+        }));
+      }
+    } catch {
+      // Backend offline or starting up
+    }
+  }, [isAuthenticated]);
+
+  // Real-time Socket.IO subscriptions for WhatsApp events
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+
+    const handleConnStatus = (data) => {
+      setWhatsappConnections((prev) => {
+        const index = prev.findIndex((c) => c._id === data.connectionId);
+        if (index !== -1) {
+          const updated = [...prev];
+          updated[index] = { ...updated[index], ...data };
+          const anyConnected = updated.some((c) => c.status === "connected");
+          setQrConnectedState(anyConnected);
+          return updated;
+        } else {
+          fetchWhatsAppConnections();
+          return prev;
+        }
+      });
+    };
+
+    const handleLeadUpdate = () => {
+      fetchLeads();
+      refreshUsage();
+    };
+
+    const handleMessageReceived = (data) => {
+      if (data?.leadId) {
+        fetchMessages(data.leadId);
+      }
+      fetchLeads();
+    };
+
+    const handleMessageUpdated = (data) => {
+      if (data?.leadId) {
+        fetchMessages(data.leadId);
+      }
+    };
+
+    socket.on("whatsapp:connection_status", handleConnStatus);
+    socket.on("whatsapp:lead_updated", handleLeadUpdate);
+    socket.on("whatsapp:message_received", handleMessageReceived);
+    socket.on("whatsapp:message_updated", handleMessageUpdated);
+
+    return () => {
+      socket.off("whatsapp:connection_status", handleConnStatus);
+      socket.off("whatsapp:lead_updated", handleLeadUpdate);
+      socket.off("whatsapp:message_received", handleMessageReceived);
+      socket.off("whatsapp:message_updated", handleMessageUpdated);
+    };
+  }, [isAuthenticated, fetchWhatsAppConnections, fetchLeads, refreshUsage, fetchMessages]);
 
   const filteredLeads = React.useMemo(() => {
     if (role === "owner" || role === "admin") {
@@ -465,30 +558,46 @@ const AppProvider = ({ children }) => {
       (prev) => prev.map((l) => l.id === leadId ? { ...l, aiHandled: !l.aiHandled } : l)
     );
   };
-  const sendMessage = (leadId, text, senderOverride) => {
+  const sendMessage = async (leadId, text, senderOverride) => {
     const targetLead = leads.find((l) => l.id === leadId);
     const sender = senderOverride || (role === "owner" || role === "salesperson" ? "salesperson" : "lead");
-    const senderName = sender === "lead" ? targetLead?.name || "Customer" : currentUser.name;
+    const senderName = sender === "lead" ? targetLead?.name || "Customer" : currentUser?.name || "Sales Representative";
+    const tempId = `msg-${Date.now()}`;
     const newMsg = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: tempId,
       leadId,
       sender,
       senderName,
       text,
-      timestamp: ( new Date()).toISOString(),
+      timestamp: (new Date()).toISOString(),
       isDelivered: true,
-      isRead: false
+      isRead: false,
     };
+
     setMessages((prev) => ({
       ...prev,
-      [leadId]: [...prev[leadId] || [], newMsg]
+      [leadId]: [...(prev[leadId] || []), newMsg],
     }));
-    setLeads(
-      (prev) => prev.map(
-        (l) => l.id === leadId ? { ...l, lastContactAt: ( new Date()).toISOString(), needsAttention: false } : l
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId ? { ...l, lastContactAt: (new Date()).toISOString(), needsAttention: false } : l
       )
     );
-    if (sender === "lead" && targetLead?.aiHandled) {
+
+    if (isAuthenticated && sender !== "lead") {
+      try {
+        const res = await apiClient.post(`/leads/${leadId}/messages`, { text });
+        if (res?.success && res.message) {
+          setMessages((prev) => ({
+            ...prev,
+            [leadId]: (prev[leadId] || []).map((m) => (m.id === tempId ? res.message : m)),
+          }));
+        }
+      } catch (err) {
+        console.error("[SendMessage Error]", err);
+      }
+    } else if (sender === "lead" && targetLead?.aiHandled) {
       setTimeout(() => {
         simulateAiResponse(leadId, text);
       }, 1200);
@@ -750,6 +859,9 @@ const AppProvider = ({ children }) => {
         refreshUsage,
         qrConnected,
         setQrConnected,
+        whatsappConnections,
+        fetchWhatsAppConnections,
+        isWhatsAppLoading,
         setRoundRobinEnabled,
         setCampaignsAddonUnlocked,
         addLead,
@@ -759,6 +871,7 @@ const AppProvider = ({ children }) => {
         bulkAssignLeads,
         bulkStatusUpdate,
         fetchLeads,
+        fetchMessages,
         fetchTeamMembers,
         changeLeadStatus,
         addLeadNote,

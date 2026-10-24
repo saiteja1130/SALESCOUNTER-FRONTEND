@@ -16,19 +16,27 @@ import {
 } from "lucide-react";
 
 export const ConversationList = ({ selectedLeadId, onSelectLead }) => {
-  const { filteredLeads, messages, qrConnected } = useApp();
+  const { filteredLeads, messages, qrConnected, whatsappConnections } = useApp();
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [sortBy, setSortBy] = useState("recent_activity");
 
-  // WhatsApp connection channels available on this workspace
-  const channels = useMemo(() => [
-    { id: "all", name: "All Channels", number: "All Numbers" },
-    { id: "conn_1", name: "Primary Line", number: "+1 555-839-2041" },
-    { id: "conn_2", name: "Sales Desk 2", number: "+1 555-912-3456" },
-  ], []);
+  // WhatsApp connection channels dynamically mapped from tenant connections
+  const channels = useMemo(() => {
+    const list = [{ id: "all", name: "All Channels", number: "All Lines" }];
+    if (Array.isArray(whatsappConnections) && whatsappConnections.length > 0) {
+      whatsappConnections.forEach((conn) => {
+        list.push({
+          id: conn._id,
+          name: conn.displayName || "WhatsApp Line",
+          number: conn.linkedPhone ? `+${conn.linkedPhone}` : "Pending QR Link",
+        });
+      });
+    }
+    return list;
+  }, [whatsappConnections]);
 
   const getCustomerWaitInfo = (lead) => {
     const thread = messages[lead.id] || [];
@@ -74,7 +82,7 @@ export const ConversationList = ({ selectedLeadId, onSelectLead }) => {
 
       // Channel filtering for multi-account WhatsApp
       if (selectedChannel !== "all") {
-        const leadChannel = lead.channelId || (lead.id.charCodeAt(lead.id.length - 1) % 2 === 0 ? "conn_1" : "conn_2");
+        const leadChannel = lead.whatsappConnectionId?.toString() || lead.whatsappConnectionId;
         if (leadChannel !== selectedChannel) return false;
       }
 

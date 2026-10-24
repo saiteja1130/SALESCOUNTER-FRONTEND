@@ -19,11 +19,17 @@ export const ChatThread = ({
   showDetails,
   onBackToList
 }) => {
-  const { messages, toggleAiHandling, sendMessage, teamMembers, assignLead } = useApp();
+  const { messages, toggleAiHandling, sendMessage, teamMembers, assignLead, fetchMessages } = useApp();
   const { showToast } = useToast();
   const thread = messages[lead.id] || [];
   const messagesEndRef = useRef(null);
   const [showSimulateMenu, setShowSimulateMenu] = useState(false);
+
+  useEffect(() => {
+    if (lead?.id && typeof fetchMessages === "function") {
+      fetchMessages(lead.id);
+    }
+  }, [lead?.id, fetchMessages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
