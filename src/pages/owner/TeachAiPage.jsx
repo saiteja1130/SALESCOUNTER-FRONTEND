@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { Unauthorized } from "../../components/layout/Unauthorized";
 import { TestChatModal } from "../../components/ai/TestChatModal";
 import {
@@ -27,7 +28,7 @@ import {
   FileText,
 } from "lucide-react";
 
-const TeachAiPage = () => {
+export const TeachAiPage = () => {
   const { role } = useAuth();
   const { aiConfig, updateAiConfig } = useApp();
   const { showToast } = useToast();
@@ -99,7 +100,7 @@ const TeachAiPage = () => {
     },
     {
       id: 3,
-      title: "Conversation rules",
+      title: "Conversation Rules",
       icon: <Zap className="w-4 h-4" />,
       description:
         "Specific guidelines for pricing, discounts, qualification, and sales pacing.",
@@ -107,7 +108,7 @@ const TeachAiPage = () => {
     },
     {
       id: 4,
-      title: "Lead details",
+      title: "Lead Details to Extract",
       icon: <FileText className="w-4 h-4" />,
       description:
         "Information the AI listens for and automatically saves to the customer profile.",
@@ -115,7 +116,7 @@ const TeachAiPage = () => {
     },
     {
       id: 5,
-      title: "Booking links & timing",
+      title: "Booking Links & Timing",
       icon: <Clock className="w-4 h-4" />,
       description:
         "Your scheduling link and the minimum conversation turns before offering it.",
@@ -123,7 +124,7 @@ const TeachAiPage = () => {
     },
     {
       id: 6,
-      title: "Information to avoid",
+      title: "Information to Avoid",
       icon: <Shield className="w-4 h-4" />,
       description:
         "Sensitive or confidential topics the AI is strictly forbidden from requesting.",
@@ -242,9 +243,7 @@ const TeachAiPage = () => {
 
   const handleRemoveField = (id) => {
     updateAiConfig({
-      fieldsToCollect: (aiConfig.fieldsToCollect || []).filter(
-        (f) => f.id !== id
-      ),
+      fieldsToCollect: (aiConfig.fieldsToCollect || []).filter((f) => f.id !== id),
     });
     triggerAutoSave();
   };
@@ -262,86 +261,61 @@ const TeachAiPage = () => {
 
   const handleRemoveShield = (field) => {
     updateAiConfig({
-      restrictedFields: (aiConfig.restrictedFields || []).filter(
-        (f) => f !== field
-      ),
+      restrictedFields: (aiConfig.restrictedFields || []).filter((f) => f !== field),
     });
     triggerAutoSave();
   };
 
   return (
     <div className="space-y-6 pb-16">
-      {/* Header */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs shrink-0">
-            <Bot className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Teach Your AI
-              </h1>
-              <span className="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-0.5 rounded-full border border-emerald-200/80">
-                Step-by-Step Training Guide
-              </span>
+      <PageHeader
+        title="Teach Your AI"
+        description="Configure how your WhatsApp sales assistant greets prospects, answers questions, and qualifies leads."
+        badge="AI Knowledge Center"
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  hasRecentChange ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
+                }`}
+              />
+              <span>{hasRecentChange ? "Saving..." : `Auto-saved (${lastSavedTime})`}</span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Configure how your WhatsApp sales assistant greets prospects,
-              answers questions, and qualifies leads.
-            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Eye className="w-4 h-4" />}
+              onClick={() => setIsPreviewModalOpen(true)}
+              title="Inspect full system prompt compiled by the AI"
+            >
+              Preview Prompt
+            </Button>
+            <Button
+              size="sm"
+              icon={<Sparkles className="w-4 h-4" />}
+              onClick={() => setIsTestModalOpen(true)}
+            >
+              Test Simulator
+            </Button>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                hasRecentChange ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
-              }`}
-            />
-            <span>
-              {hasRecentChange
-                ? "Saving..."
-                : `Auto-saved (${lastSavedTime})`}
-            </span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Eye className="w-4 h-4" />}
-            onClick={() => setIsPreviewModalOpen(true)}
-            title="Inspect full system prompt compiled by the AI"
-          >
-            Preview Prompt
-          </Button>
-          <Button
-            size="sm"
-            icon={<Sparkles className="w-4 h-4" />}
-            onClick={() => setIsTestModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            Test Simulator
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Progress Bar */}
-      <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/90 shadow-2xs">
+      {/* Progress Bar Card */}
+      <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-900">
-              Setup Progress
-            </span>
+            <span className="text-xs font-semibold text-slate-900">Setup Progress</span>
             <span className="text-xs text-slate-500">
-              ({completedCount} of {blocks.length} sections ready ·{" "}
-              {progressPercent}%)
+              ({completedCount} of {blocks.length} sections ready · {progressPercent}%)
             </span>
           </div>
-          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 self-start sm:self-auto">
+          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 self-start sm:self-auto">
             Currently on Step {activeBlock} of {blocks.length}
           </span>
         </div>
-        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
           <div
             className="bg-emerald-600 h-full rounded-full transition-all duration-300"
             style={{ width: `${progressPercent}%` }}
@@ -351,7 +325,7 @@ const TeachAiPage = () => {
 
       {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Sidebar Navigation */}
+        {/* Navigation Sidebar */}
         <div className="lg:col-span-4 space-y-2">
           {blocks.map((block) => {
             const isActive = activeBlock === block.id;
@@ -362,11 +336,11 @@ const TeachAiPage = () => {
                 className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 cursor-pointer ${
                   isActive
                     ? "bg-emerald-50/80 border-emerald-400 text-slate-900 shadow-2xs ring-1 ring-emerald-400/20"
-                    : "bg-white border-slate-200/90 hover:border-slate-300 text-slate-700"
+                    : "bg-white border-slate-200 hover:border-slate-300 text-slate-700"
                 }`}
               >
                 <div
-                  className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${
+                  className={`mt-0.5 p-2 rounded-lg shrink-0 ${
                     isActive
                       ? "bg-emerald-600 text-white"
                       : "bg-slate-100 text-slate-500"
@@ -376,15 +350,15 @@ const TeachAiPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                       Step {block.id} of {blocks.length}
                     </span>
                     {block.isComplete ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
                         <Check className="w-3 h-3" /> Ready
                       </span>
                     ) : (
-                      <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60">
+                      <span className="text-xs font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                         Needs setup
                       </span>
                     )}
@@ -407,26 +381,21 @@ const TeachAiPage = () => {
             );
           })}
 
-          {/* Help Box */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 space-y-2">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
             <div className="flex items-center gap-1.5 font-semibold text-slate-800">
               <HelpCircle className="w-4 h-4 text-emerald-600" />
               <span>How this works</span>
             </div>
             <p className="leading-relaxed text-slate-500">
-              Each section contributes directly to the AI&apos;s dynamic system
-              prompt. All changes update automatically as you type. Use the{" "}
-              <strong>Test Simulator</strong> to chat with sample scenarios
-              anytime.
+              Each section contributes directly to the AI's dynamic system prompt. All changes update automatically as you type. Use the <strong>Test Simulator</strong> to test sample scenarios anytime.
             </p>
           </div>
         </div>
 
         {/* Content Panel */}
         <div className="lg:col-span-8">
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden min-h-[540px]">
-
-            {/* ── Step 1: Brand Identity ── */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden min-h-[540px]">
+            {/* Step 1: Brand Identity */}
             {activeBlock === 1 && (
               <div className="p-6 sm:p-7 space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-100 pb-4">
@@ -439,93 +408,67 @@ const TeachAiPage = () => {
                     Brand Identity &amp; Texting Style
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Introduce who the AI represents, your core business, and how
-                    concise its WhatsApp replies should be.
+                    Introduce who the AI represents, your core business, and how concise its WhatsApp replies should be.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Agent Name <span className="text-rose-500">*</span>
-                    </label>
-                    <Input
-                      placeholder="e.g. Elena Vance"
-                      value={aiConfig.agentName}
-                      onChange={(e) => {
-                        updateAiConfig({ agentName: e.target.value });
-                        triggerAutoSave();
-                      }}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      The name the AI uses when greeting customers.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Agent Role <span className="text-rose-500">*</span>
-                    </label>
-                    <Input
-                      placeholder="e.g. Design Consultant & Sales Advisor"
-                      value={aiConfig.agentRole}
-                      onChange={(e) => {
-                        updateAiConfig({ agentRole: e.target.value });
-                        triggerAutoSave();
-                      }}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Job title used to establish credibility.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Company Name <span className="text-rose-500">*</span>
-                    </label>
-                    <Input
-                      placeholder="e.g. Artisan Living Decor"
-                      value={aiConfig.companyName}
-                      onChange={(e) => {
-                        updateAiConfig({ companyName: e.target.value });
-                        triggerAutoSave();
-                      }}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Your registered brand or showroom name.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Response Word Limit (Words)
-                    </label>
-                    <Input
-                      type="number"
-                      placeholder="55"
-                      value={aiConfig.maxWords}
-                      onChange={(e) => {
-                        updateAiConfig({
-                          maxWords: Number(e.target.value) || 55,
-                        });
-                        triggerAutoSave();
-                      }}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Recommended: 40–60 words for quick WhatsApp chats.
-                    </p>
-                  </div>
+                  <Input
+                    label="Agent Name"
+                    required
+                    placeholder="e.g. Elena Vance"
+                    value={aiConfig.agentName}
+                    onChange={(e) => {
+                      updateAiConfig({ agentName: e.target.value });
+                      triggerAutoSave();
+                    }}
+                    helper="The name the AI uses when greeting customers."
+                  />
+                  <Input
+                    label="Agent Role"
+                    required
+                    placeholder="e.g. Design Consultant & Sales Advisor"
+                    value={aiConfig.agentRole}
+                    onChange={(e) => {
+                      updateAiConfig({ agentRole: e.target.value });
+                      triggerAutoSave();
+                    }}
+                    helper="Job title used to establish credibility."
+                  />
+                  <Input
+                    label="Company Name"
+                    required
+                    placeholder="e.g. Artisan Living Decor"
+                    value={aiConfig.companyName}
+                    onChange={(e) => {
+                      updateAiConfig({ companyName: e.target.value });
+                      triggerAutoSave();
+                    }}
+                    helper="Your registered brand or showroom name."
+                  />
+                  <Input
+                    label="Response Word Limit (Words)"
+                    type="number"
+                    placeholder="55"
+                    value={aiConfig.maxWords}
+                    onChange={(e) => {
+                      updateAiConfig({ maxWords: Number(e.target.value) || 55 });
+                      triggerAutoSave();
+                    }}
+                    helper="Recommended: 40–60 words for snappy WhatsApp chats."
+                  />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-700">
                       Business Description &amp; Value Proposition{" "}
                       <span className="text-rose-500">*</span>
                     </label>
-                    <span className="text-[11px] text-slate-400">
-                      Used for domain knowledge
-                    </span>
+                    <span className="text-xs text-slate-400">Used for domain knowledge</span>
                   </div>
                   <textarea
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
                     rows={3}
                     placeholder="e.g. Artisan Living designs bespoke residential furniture and handcrafted architectural millwork for homeowners and interior architects across New York and California."
                     value={aiConfig.businessDescription}
@@ -534,27 +477,23 @@ const TeachAiPage = () => {
                       triggerAutoSave();
                     }}
                   />
-                  <div className="mt-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[11px] text-slate-500 flex items-start gap-1.5">
-                    <HelpCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="mt-2 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500 flex items-start gap-2">
+                    <HelpCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
-                      <strong>Helpful example:</strong> Mention your specialty
-                      products, key client types, and service areas so the AI
-                      answers inquiries with context.
+                      <strong>Helpful example:</strong> Mention your specialty products, key client types, and service areas so the AI answers inquiries with context.
                     </span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-slate-700">
                       Negative Guidelines &amp; Phrases to Avoid
                     </label>
-                    <span className="text-[11px] text-slate-400">
-                      Prevents robotic sounding text
-                    </span>
+                    <span className="text-xs text-slate-400">Prevents robotic text</span>
                   </div>
                   <textarea
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm font-mono text-slate-700 leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm font-mono text-slate-700 leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
                     rows={3}
                     placeholder="e.g. NEVER say 'As an AI language model'. Never use corporate apologies like 'I apologize for any inconvenience'. Speak concisely like a busy professional sales rep."
                     value={aiConfig.antiAiGuardrails}
@@ -563,30 +502,28 @@ const TeachAiPage = () => {
                       triggerAutoSave();
                     }}
                   />
-                  <p className="text-[11px] text-slate-500">
-                    These negative constraints ensure the AI stays natural and
-                    avoids sounding like a generic automated chatbot.
+                  <p className="text-xs text-slate-500">
+                    These negative constraints ensure the AI stays natural and avoids sounding like a generic automated chatbot.
                   </p>
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                   <Button
-                    variant="secondary"
+                    variant="outline"
                     size="sm"
                     onClick={handleExplicitSave}
-                    icon={<Save className="w-3.5 h-3.5" />}
+                    icon={<Save className="w-4 h-4" />}
                   >
                     Save Changes
                   </Button>
                   <Button onClick={() => setActiveBlock(2)}>
-                    Next: Greetings &amp; Services{" "}
-                    <ArrowRight className="w-4 h-4 ml-1.5" />
+                    Next: Greetings &amp; Services <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ── Step 2: Greetings & Services ── */}
+            {/* Step 2: Greetings & Services */}
             {activeBlock === 2 && (
               <div className="p-6 sm:p-7 space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-100 pb-4">
@@ -599,23 +536,19 @@ const TeachAiPage = () => {
                     Greetings &amp; Services Catalog
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Customize your opening conversation starter and educate the
-                    AI on your service offerings.
+                    Customize your opening conversation starter and educate the AI on your service offerings.
                   </p>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-700">
-                      Default Welcome Message{" "}
-                      <span className="text-rose-500">*</span>
+                      Default Welcome Message <span className="text-rose-500">*</span>
                     </label>
-                    <span className="text-[11px] text-slate-400">
-                      Triggered on first inbound WhatsApp message
-                    </span>
+                    <span className="text-xs text-slate-400">Triggered on first inbound WhatsApp message</span>
                   </div>
                   <textarea
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
                     rows={2}
                     value={aiConfig.welcomeMessage}
                     onChange={(e) => {
@@ -623,12 +556,10 @@ const TeachAiPage = () => {
                       triggerAutoSave();
                     }}
                   />
-                  <div className="mt-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[11px] text-slate-500 flex items-start gap-1.5">
-                    <HelpCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="mt-2 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500 flex items-start gap-2">
+                    <HelpCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
-                      <strong>Example:</strong> &quot;Hi! Welcome to Artisan
-                      Living. Are you searching for custom furniture for an
-                      upcoming home project or looking for our catalog?&quot;
+                      <strong>Example:</strong> "Hi! Welcome to Artisan Living. Are you searching for custom furniture for an upcoming home project or looking for our catalog?"
                     </span>
                   </div>
                 </div>
@@ -639,16 +570,12 @@ const TeachAiPage = () => {
                       Services Catalog ({aiConfig.services?.length || 0} active)
                     </label>
                     <p className="text-xs text-slate-500">
-                      Add services with brief descriptions. When prospects ask
-                      what you offer, the AI references these items.
+                      Add services with brief descriptions. When prospects ask what you offer, the AI references these items.
                     </p>
                   </div>
 
-                  {/* Service Templates */}
-                  <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-2">
-                    <span className="text-[11px] font-semibold text-slate-600">
-                      Quick starter templates:
-                    </span>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <span className="text-xs font-semibold text-slate-600">Quick starter templates:</span>
                     <div className="flex flex-wrap gap-1.5">
                       {[
                         {
@@ -670,23 +597,23 @@ const TeachAiPage = () => {
                       ].map((tmpl) => (
                         <button
                           key={tmpl.name}
+                          type="button"
                           onClick={() => handleAddService(tmpl.name, tmpl.desc)}
-                          className="text-xs bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                          className="text-xs bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 px-3 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                           <span>{tmpl.name}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Add Service Form */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/90 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <input
                         type="text"
                         placeholder="Service title (e.g. Custom Credenzas)..."
-                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600"
+                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         value={newServiceName}
                         onChange={(e) => setNewServiceName(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleAddService()}
@@ -694,7 +621,7 @@ const TeachAiPage = () => {
                       <input
                         type="text"
                         placeholder="Short description for the AI..."
-                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600"
+                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         value={newServiceDesc}
                         onChange={(e) => setNewServiceDesc(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleAddService()}
@@ -705,41 +632,37 @@ const TeachAiPage = () => {
                         size="sm"
                         onClick={() => handleAddService()}
                         disabled={!newServiceName.trim()}
-                        icon={<Plus className="w-3.5 h-3.5" />}
+                        icon={<Plus className="w-4 h-4" />}
                       >
                         Add Service
                       </Button>
                     </div>
                   </div>
 
-                  {/* Service List */}
                   <div className="grid grid-cols-1 gap-2.5">
                     {(aiConfig.services || []).map((s) => (
                       <div
                         key={s.id}
-                        className="p-3.5 bg-white border border-slate-200/90 rounded-xl text-xs sm:text-sm shadow-2xs space-y-2"
+                        className="p-3.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm shadow-2xs space-y-2"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900">
-                            {s.name}
-                          </span>
+                          <span className="font-semibold text-slate-900">{s.name}</span>
                           <button
+                            type="button"
                             onClick={() => handleRemoveService(s.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                             title="Delete service"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                         <textarea
-                          className="w-full bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 resize-none transition-all leading-relaxed"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none transition-all leading-relaxed"
                           rows={2}
                           value={s.description}
                           onChange={(e) => {
                             const nextServices = aiConfig.services.map((serv) =>
-                              serv.id === s.id
-                                ? { ...serv, description: e.target.value }
-                                : serv
+                              serv.id === s.id ? { ...serv, description: e.target.value } : serv
                             );
                             updateAiConfig({ services: nextServices });
                             triggerAutoSave();
@@ -760,14 +683,13 @@ const TeachAiPage = () => {
                     Back
                   </Button>
                   <Button onClick={() => setActiveBlock(3)}>
-                    Next: Conversation rules{" "}
-                    <ArrowRight className="w-4 h-4 ml-1.5" />
+                    Next: Conversation Rules <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ── Step 3: Conversation Rules ── */}
+            {/* Step 3: Conversation Rules */}
             {activeBlock === 3 && (
               <div className="p-6 sm:p-7 space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-100 pb-4">
@@ -776,20 +698,14 @@ const TeachAiPage = () => {
                     <span>•</span>
                     <span>Rules &amp; Playbook</span>
                   </div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Conversation Rules
-                  </h2>
+                  <h2 className="text-lg font-bold text-slate-900">Conversation Rules</h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Set explicit boundaries for how the AI negotiates discounts,
-                    answers pricing questions, and paces customer replies.
+                    Set explicit boundaries for how the AI negotiates discounts, answers pricing questions, and paces customer replies.
                   </p>
                 </div>
 
-                {/* Rule Templates */}
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-2">
-                  <span className="text-[11px] font-semibold text-slate-600">
-                    Starter rule templates:
-                  </span>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-xs font-semibold text-slate-600">Starter rule templates:</span>
                   <div className="flex flex-wrap gap-1.5">
                     {[
                       {
@@ -811,32 +727,30 @@ const TeachAiPage = () => {
                     ].map((tmpl) => (
                       <button
                         key={tmpl.title}
+                        type="button"
                         onClick={() => handleAddRule(tmpl.title, tmpl.inst)}
-                        className="text-xs bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                        className="text-xs bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 px-3 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                         <span>{tmpl.title}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Add Rule Form */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <span className="text-xs font-bold text-slate-700">
-                    Add a New Rule
-                  </span>
-                  <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-800">Add a New Rule</span>
+                  <div className="space-y-2.5">
                     <input
                       type="text"
                       placeholder="Rule title (e.g. Delivery Area Policy)..."
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 font-semibold"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 font-semibold"
                       value={newRuleTitle}
                       onChange={(e) => setNewRuleTitle(e.target.value)}
                     />
                     <textarea
-                      placeholder="Specific instruction for the AI (e.g. We ship across the US. For Hawaii and Alaska, mention custom freight fees)..."
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 leading-relaxed"
+                      placeholder="Specific instruction for the AI..."
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 leading-relaxed"
                       rows={2}
                       value={newRuleInstruction}
                       onChange={(e) => setNewRuleInstruction(e.target.value)}
@@ -845,10 +759,8 @@ const TeachAiPage = () => {
                       <Button
                         size="sm"
                         onClick={() => handleAddRule()}
-                        disabled={
-                          !newRuleTitle.trim() || !newRuleInstruction.trim()
-                        }
-                        icon={<Plus className="w-3.5 h-3.5" />}
+                        disabled={!newRuleTitle.trim() || !newRuleInstruction.trim()}
+                        icon={<Plus className="w-4 h-4" />}
                       >
                         Add Rule
                       </Button>
@@ -856,16 +768,16 @@ const TeachAiPage = () => {
                   </div>
                 </div>
 
-                {/* Rule List */}
                 <div className="space-y-3">
                   {(aiConfig.rules || []).map((rule) => (
                     <div
                       key={rule.id}
-                      className="p-4 rounded-xl border border-slate-200/90 bg-white shadow-2xs space-y-2.5"
+                      className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2.5"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <button
+                            type="button"
                             onClick={() => handleToggleRule(rule.id)}
                             className={`w-9 h-5 rounded-full transition-colors relative shrink-0 cursor-pointer ${
                               rule.active ? "bg-emerald-600" : "bg-slate-200"
@@ -880,31 +792,28 @@ const TeachAiPage = () => {
                           </button>
                           <span
                             className={`font-semibold text-xs sm:text-sm ${
-                              rule.active
-                                ? "text-slate-900"
-                                : "text-slate-400 line-through"
+                              rule.active ? "text-slate-900" : "text-slate-400 line-through"
                             }`}
                           >
                             {rule.title}
                           </span>
                         </div>
                         <button
+                          type="button"
                           onClick={() => handleRemoveRule(rule.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                           title="Delete rule"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                       <textarea
-                        className="w-full bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 resize-none transition-all leading-relaxed"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none transition-all leading-relaxed"
                         rows={2}
                         value={rule.instruction}
                         onChange={(e) => {
                           const nextRules = aiConfig.rules.map((r) =>
-                            r.id === rule.id
-                              ? { ...r, instruction: e.target.value }
-                              : r
+                            r.id === rule.id ? { ...r, instruction: e.target.value } : r
                           );
                           updateAiConfig({ rules: nextRules });
                           triggerAutoSave();
@@ -924,13 +833,13 @@ const TeachAiPage = () => {
                     Back
                   </Button>
                   <Button onClick={() => setActiveBlock(4)}>
-                    Next: Lead details <ArrowRight className="w-4 h-4 ml-1.5" />
+                    Next: Lead Details <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ── Step 4: Lead Details ── */}
+            {/* Step 4: Lead Details to Extract */}
             {activeBlock === 4 && (
               <div className="p-6 sm:p-7 space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-100 pb-4">
@@ -943,31 +852,22 @@ const TeachAiPage = () => {
                     Lead Details to Collect
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    As clients chat on WhatsApp, the AI quietly identifies these
-                    key details and saves them directly into your CRM.
+                    As clients chat on WhatsApp, the AI quietly identifies these key details and saves them directly into your CRM.
                   </p>
                 </div>
 
-                <div className="bg-emerald-50/70 border border-emerald-200/80 p-4 rounded-xl flex gap-3 text-xs text-emerald-900">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex gap-3 text-xs text-emerald-900">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <p className="font-semibold">
-                      How Automatic Lead Qualification Works:
-                    </p>
-                    <p className="text-emerald-800 leading-relaxed">
-                      You don&apos;t need complicated survey forms. As prospects
-                      mention their budget, room type, or timeframe naturally in
-                      conversation, Conversly extracts them automatically for
-                      your sales reps.
+                    <p className="font-semibold text-sm">How Automatic Qualification Works:</p>
+                    <p className="text-emerald-800 leading-relaxed text-xs">
+                      No questionnaires needed. As prospects mention their budget, room type, or timeframe naturally in conversation, Conversly extracts them automatically for your sales reps.
                     </p>
                   </div>
                 </div>
 
-                {/* Field Templates */}
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-2">
-                  <span className="text-[11px] font-semibold text-slate-600">
-                    Common lead detail fields:
-                  </span>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-xs font-semibold text-slate-600">Common lead detail fields:</span>
                   <div className="flex flex-wrap gap-1.5">
                     {[
                       { label: "Estimated Budget", key: "budget" },
@@ -978,69 +878,50 @@ const TeachAiPage = () => {
                     ].map((tmpl) => (
                       <button
                         key={tmpl.key}
+                        type="button"
                         onClick={() => handleAddField(tmpl.label, tmpl.key)}
-                        className="text-xs bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                        className="text-xs bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-slate-700 px-3 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                         <span>{tmpl.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Add Field Form */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <span className="text-xs font-bold text-slate-700">
-                    Add a Custom Lead Field
-                  </span>
+                  <span className="text-xs font-bold text-slate-800">Add a Custom Lead Field</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        Field Label
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Move-in Date"
-                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                        value={newFieldLabel}
-                        onChange={(e) => {
-                          setNewFieldLabel(e.target.value);
-                          if (!newFieldKey) {
-                            setNewFieldKey(
-                              e.target.value
-                                .toLowerCase()
-                                .replace(/\s+/g, "_")
-                            );
-                          }
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        Internal Name (Key)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. move_in_date"
-                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                        value={newFieldKey}
-                        onChange={(e) => setNewFieldKey(e.target.value)}
-                      />
-                    </div>
+                    <Input
+                      label="Field Label"
+                      placeholder="e.g. Move-in Date"
+                      value={newFieldLabel}
+                      onChange={(e) => {
+                        setNewFieldLabel(e.target.value);
+                        if (!newFieldKey) {
+                          setNewFieldKey(e.target.value.toLowerCase().replace(/\s+/g, "_"));
+                        }
+                      }}
+                    />
+                    <Input
+                      label="Internal Name (Key)"
+                      placeholder="e.g. move_in_date"
+                      value={newFieldKey}
+                      onChange={(e) => setNewFieldKey(e.target.value)}
+                    />
                   </div>
                   <div className="flex justify-end">
                     <Button
                       size="sm"
                       onClick={() => handleAddField()}
                       disabled={!newFieldLabel.trim()}
-                      icon={<Plus className="w-3.5 h-3.5" />}
+                      icon={<Plus className="w-4 h-4" />}
                     >
                       Add Field
                     </Button>
                   </div>
                 </div>
 
-                {/* Field List */}
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-slate-700">
                     Active Fields to Extract ({aiConfig.fieldsToCollect?.length || 0})
@@ -1048,20 +929,21 @@ const TeachAiPage = () => {
                   {(aiConfig.fieldsToCollect || []).map((field) => (
                     <div
                       key={field.id}
-                      className="flex items-center justify-between p-3 border border-slate-200/90 rounded-xl bg-white shadow-2xs"
+                      className="flex items-center justify-between p-3 border border-slate-200 rounded-xl bg-white shadow-2xs"
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-2 h-2 rounded-full bg-emerald-500" />
                         <span className="text-xs sm:text-sm font-semibold text-slate-800">
                           {field.label}
                         </span>
-                        <span className="text-[11px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                        <span className="text-xs text-slate-400 font-mono bg-slate-100 px-2 py-0.5 rounded">
                           key: {field.key}
                         </span>
                       </div>
                       <button
+                        type="button"
                         onClick={() => handleRemoveField(field.id)}
-                        className="text-slate-400 hover:text-rose-600 transition-colors p-1 cursor-pointer"
+                        className="text-slate-400 hover:text-rose-600 transition-colors p-1.5 cursor-pointer"
                         title="Delete field"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1080,14 +962,13 @@ const TeachAiPage = () => {
                     Back
                   </Button>
                   <Button onClick={() => setActiveBlock(5)}>
-                    Next: Booking links &amp; timing{" "}
-                    <ArrowRight className="w-4 h-4 ml-1.5" />
+                    Next: Booking Links &amp; Timing <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ── Step 5: Booking Links & Timing ── */}
+            {/* Step 5: Booking Links & Timing */}
             {activeBlock === 5 && (
               <div className="p-6 sm:p-7 space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-100 pb-4">
@@ -1100,31 +981,27 @@ const TeachAiPage = () => {
                     Booking Links &amp; Message Timing
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Prevent the AI from pushing links prematurely. Keep the
-                    conversation engaging and natural first.
+                    Prevent the AI from pushing links prematurely. Keep the conversation engaging and natural first.
                   </p>
                 </div>
 
                 <div className="space-y-5">
-                  <div className="p-5 border border-slate-200/90 rounded-2xl bg-slate-50/60 space-y-3">
+                  <div className="p-5 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <div className="text-xs sm:text-sm font-semibold text-slate-900">
                           Minimum Messages Before Sharing Links
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          The AI will not send calendar booking links until at
-                          least this many user messages have occurred.
+                          The AI will not send calendar booking links until at least this many user messages have occurred.
                         </p>
                       </div>
                       <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
                         <button
+                          type="button"
                           onClick={() => {
                             updateAiConfig({
-                              minTurnsForCTA: Math.max(
-                                1,
-                                aiConfig.minTurnsForCTA - 1
-                              ),
+                              minTurnsForCTA: Math.max(1, aiConfig.minTurnsForCTA - 1),
                             });
                             triggerAutoSave();
                           }}
@@ -1136,6 +1013,7 @@ const TeachAiPage = () => {
                           {aiConfig.minTurnsForCTA}
                         </span>
                         <button
+                          type="button"
                           onClick={() => {
                             updateAiConfig({
                               minTurnsForCTA: aiConfig.minTurnsForCTA + 1,
@@ -1150,25 +1028,17 @@ const TeachAiPage = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Primary Consultation Booking Link{" "}
-                      <span className="text-rose-500">*</span>
-                    </label>
-                    <Input
-                      placeholder="https://calendly.com/your-business/design-consultation"
-                      value={aiConfig.ctaLink}
-                      onChange={(e) => {
-                        updateAiConfig({ ctaLink: e.target.value });
-                        triggerAutoSave();
-                      }}
-                    />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Your scheduling URL (Calendly, Cal.com, or booking page).
-                      The AI will offer this when a prospect is ready for a
-                      consultation.
-                    </p>
-                  </div>
+                  <Input
+                    label="Primary Consultation Booking Link"
+                    required
+                    placeholder="https://calendly.com/your-business/design-consultation"
+                    value={aiConfig.ctaLink}
+                    onChange={(e) => {
+                      updateAiConfig({ ctaLink: e.target.value });
+                      triggerAutoSave();
+                    }}
+                    helper="Your scheduling URL (Calendly, Cal.com, or booking page). The AI will offer this when a prospect is qualified."
+                  />
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -1181,14 +1051,13 @@ const TeachAiPage = () => {
                     Back
                   </Button>
                   <Button onClick={() => setActiveBlock(6)}>
-                    Next: Information to avoid{" "}
-                    <ArrowRight className="w-4 h-4 ml-1.5" />
+                    Next: Information to Avoid <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ── Step 6: Information to Avoid ── */}
+            {/* Step 6: Information to Avoid */}
             {activeBlock === 6 && (
               <div className="p-6 sm:p-7 space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-100 pb-4">
@@ -1197,20 +1066,14 @@ const TeachAiPage = () => {
                     <span>•</span>
                     <span>Privacy &amp; Sensitive Fields</span>
                   </div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Information to Avoid
-                  </h2>
+                  <h2 className="text-lg font-bold text-slate-900">Information to Avoid</h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Strict privacy boundaries. Topics and sensitive data the AI
-                    must never prompt for or request over WhatsApp.
+                    Strict privacy boundaries. Topics and sensitive data the AI must never prompt for or request over WhatsApp.
                   </p>
                 </div>
 
-                {/* Shield Templates */}
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-2">
-                  <span className="text-[11px] font-semibold text-slate-600">
-                    Common sensitive fields:
-                  </span>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-xs font-semibold text-slate-600">Common sensitive fields:</span>
                   <div className="flex flex-wrap gap-1.5">
                     {[
                       "Credit card numbers",
@@ -1221,23 +1084,23 @@ const TeachAiPage = () => {
                     ].map((field) => (
                       <button
                         key={field}
+                        type="button"
                         onClick={() => handleAddShield(field)}
-                        className="text-xs bg-white hover:bg-rose-50 hover:text-rose-800 hover:border-rose-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                        className="text-xs bg-white hover:bg-rose-50 hover:text-rose-800 hover:border-rose-300 text-slate-700 px-3 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                         <span>{field}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Add Shield Form + List */}
                 <div className="space-y-4">
                   <div className="flex gap-2">
                     <input
                       type="text"
                       placeholder="Forbidden field (e.g. Credit Card numbers)..."
-                      className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
                       value={newShieldField}
                       onChange={(e) => setNewShieldField(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleAddShield()}
@@ -1246,7 +1109,7 @@ const TeachAiPage = () => {
                       size="sm"
                       onClick={() => handleAddShield()}
                       disabled={!newShieldField.trim()}
-                      icon={<Plus className="w-3.5 h-3.5" />}
+                      icon={<Plus className="w-4 h-4" />}
                     >
                       Protect
                     </Button>
@@ -1265,8 +1128,9 @@ const TeachAiPage = () => {
                           </span>
                         </div>
                         <button
+                          type="button"
                           onClick={() => handleRemoveShield(f)}
-                          className="text-rose-300 hover:text-rose-700 transition-colors cursor-pointer p-1"
+                          className="text-rose-400 hover:text-rose-700 transition-colors cursor-pointer p-1.5"
                           title="Remove restriction"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1276,17 +1140,13 @@ const TeachAiPage = () => {
                   </div>
                 </div>
 
-                {/* Privacy Safeguard Note */}
                 <div className="p-4 rounded-xl bg-slate-900 text-white space-y-1.5">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
                     <Sparkles className="w-4 h-4" />
                     <span>Privacy Safeguard Active</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    If a prospect voluntarily texts sensitive details like a
-                    credit card number, the AI acknowledges receipt safely
-                    without echoing the number, and immediately flags the
-                    conversation for human sales rep review.
+                    If a prospect voluntarily texts sensitive details like a credit card number, the AI acknowledges receipt safely without echoing the number, and immediately flags the conversation for human sales rep review.
                   </p>
                 </div>
 
@@ -1301,18 +1161,17 @@ const TeachAiPage = () => {
                   </Button>
                   <div className="flex items-center gap-2.5">
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
                       onClick={handleExplicitSave}
-                      icon={<Check className="w-3.5 h-3.5" />}
+                      icon={<Check className="w-4 h-4" />}
                     >
                       Save All Changes
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => setIsTestModalOpen(true)}
-                      icon={<Sparkles className="w-3.5 h-3.5" />}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      icon={<Sparkles className="w-4 h-4" />}
                     >
                       Test in Simulator
                     </Button>
@@ -1334,16 +1193,14 @@ const TeachAiPage = () => {
                   <Eye className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">
-                    Compiled System Prompt
-                  </h3>
+                  <h3 className="font-bold text-slate-900 text-base">Compiled System Prompt</h3>
                   <p className="text-xs text-slate-500">
-                    This is the full dynamic instruction set sent to Gemini 2.5
-                    when answering WhatsApp messages.
+                    This is the dynamic instruction set sent to Gemini when answering WhatsApp messages.
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsPreviewModalOpen(false)}
                 className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
               >
@@ -1379,5 +1236,3 @@ const TeachAiPage = () => {
     </div>
   );
 };
-
-export { TeachAiPage };

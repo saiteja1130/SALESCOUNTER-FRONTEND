@@ -5,8 +5,10 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
+import { Textarea } from "../ui/Textarea";
 import { Sparkles } from "lucide-react";
-const RuleBuilderModal = ({
+
+export const RuleBuilderModal = ({
   isOpen,
   onClose,
   initialRule,
@@ -25,6 +27,7 @@ const RuleBuilderModal = ({
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(true);
   const [quietHoursStart, setQuietHoursStart] = useState("21:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("08:00");
+
   useEffect(() => {
     if (isOpen) {
       if (initialRule) {
@@ -52,6 +55,7 @@ const RuleBuilderModal = ({
       }
     }
   }, [isOpen, initialRule, mode]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim() || !messageTemplate.trim()) {
@@ -68,7 +72,7 @@ const RuleBuilderModal = ({
         actionType,
         quietHoursEnabled,
         quietHoursStart,
-        quietHoursEnd
+        quietHoursEnd,
       });
       showToast(`Updated follow-up rule "${title.trim()}"`);
     } else {
@@ -82,24 +86,29 @@ const RuleBuilderModal = ({
         quietHoursEnabled,
         quietHoursStart,
         quietHoursEnd,
-        isActive: true
+        isActive: true,
       });
       showToast(
-        mode === "duplicate" ? `Created duplicate rule "${title.trim()}"` : "Automated follow-up rule created"
+        mode === "duplicate"
+          ? `Created duplicate rule "${title.trim()}"`
+          : "Automated follow-up rule created"
       );
     }
     onClose();
   };
+
   const getModalTitle = () => {
     if (mode === "edit") return "Edit Follow-up Automation Rule";
     if (mode === "duplicate") return "Duplicate Follow-up Automation Rule";
     return "Create Follow-up Automation Rule";
   };
+
   const getButtonLabel = () => {
     if (mode === "edit") return "Save Rule Changes";
     if (mode === "duplicate") return "Create Duplicate Rule";
     return "Save Automation Rule";
   };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -120,12 +129,13 @@ const RuleBuilderModal = ({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Rule Title *"
+          label="Rule Title"
+          required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Interested Lead 24h Gentle Touchpoint"
-          required
         />
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select
             label="Trigger Condition"
@@ -149,6 +159,7 @@ const RuleBuilderModal = ({
             <option value={72}>72 Hours (3 Days)</option>
           </Select>
         </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select
             label="Target Lead Stage"
@@ -171,43 +182,27 @@ const RuleBuilderModal = ({
             <option value="notify_salesperson">Create reminder task for assigned rep</option>
           </Select>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1.5">
-            Follow-up Message Template *
-          </label>
-          <textarea
-            value={messageTemplate}
-            onChange={(e) => setMessageTemplate(e.target.value)}
-            rows={3}
-            className="w-full text-xs rounded-lg border border-slate-200 p-2.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-700 font-sans leading-relaxed"
-            required
-          />
-          <p className="mt-1 text-[11px] text-slate-400">
-            Available dynamic tags:{" "}
-            <code className="text-slate-700 font-mono bg-slate-100 px-1 py-0.5 rounded">
-              {"{{lead_name}}"}
-            </code>
-            {", "}
-            <code className="text-slate-700 font-mono bg-slate-100 px-1 py-0.5 rounded">
-              {"{{interested_product}}"}
-            </code>
-            {", "}
-            <code className="text-slate-700 font-mono bg-slate-100 px-1 py-0.5 rounded">
-              {"{{delivery_city}}"}
-            </code>
-          </p>
-        </div>
-        <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
+
+        <Textarea
+          label="Follow-up Message Template"
+          required
+          value={messageTemplate}
+          onChange={(e) => setMessageTemplate(e.target.value)}
+          rows={3}
+          helper="Available tags: {{lead_name}}, {{interested_product}}, {{delivery_city}}"
+        />
+
+        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
           <label className="flex items-start gap-2.5 text-xs font-medium text-slate-800 cursor-pointer">
             <input
               type="checkbox"
               checked={quietHoursEnabled}
               onChange={(e) => setQuietHoursEnabled(e.target.checked)}
-              className="mt-0.5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-700"
+              className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
             />
             <div>
-              <span>Enable Quiet Hours Window</span>
-              <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+              <span className="font-semibold text-slate-900">Enable Quiet Hours Window</span>
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
                 Overnight messages are paused and safely released at 8:15 AM local time to avoid disturbing clients.
               </p>
             </div>
@@ -219,25 +214,24 @@ const RuleBuilderModal = ({
                 type="time"
                 value={quietHoursStart}
                 onChange={(e) => setQuietHoursStart(e.target.value)}
-                className="text-xs"
               />
               <Input
                 label="Quiet End (Morning)"
                 type="time"
                 value={quietHoursEnd}
                 onChange={(e) => setQuietHoursEnd(e.target.value)}
-                className="text-xs"
               />
             </div>
           )}
         </div>
+
         <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
           <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <span className="font-semibold text-emerald-950">
               Automation Plain-Language Timeline:
             </span>
-            <p className="text-[11px] leading-relaxed text-emerald-800">
+            <p className="text-xs leading-relaxed text-emerald-800">
               If a lead in <strong>{targetStatus}</strong> stage has no response for{" "}
               <strong>{delayHours} hours</strong>,{" "}
               {actionType === "ai_send_whatsapp"
@@ -252,7 +246,4 @@ const RuleBuilderModal = ({
       </form>
     </Modal>
   );
-};
-export {
-  RuleBuilderModal
 };

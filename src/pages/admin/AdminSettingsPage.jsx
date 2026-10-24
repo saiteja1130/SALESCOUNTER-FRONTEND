@@ -1,10 +1,81 @@
 import { Button } from "../../components/ui/Button";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { useToast } from "../../context/ToastContext";
 import { ShieldCheck, Cpu } from "lucide-react";
-const AdminSettingsPage = () => {
+
+export const AdminSettingsPage = () => {
   const { showToast } = useToast();
-  return  <div className={"space-y-6 max-w-3xl"}>{<div>{<h1 className={"text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight"}>Platform System Configuration</h1>}{<p className={"text-xs sm:text-sm text-slate-500 mt-0.5"}>Global sandbox parameters, rate limiting thresholds, and security compliance</p>}</div>}{<div className={"bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-2xs"}>{<div className={"flex items-center gap-3"}>{<div className={"p-2 bg-blue-50 text-blue-700 rounded-lg"}>{<Cpu className={"w-5 h-5"} />}</div>}{<div>{<h3 className={"text-sm font-semibold text-slate-900"}>Model Inference Infrastructure</h3>}{<p className={"text-xs text-slate-500"}>Google Gemini 2.5 Flash cluster routing</p>}</div>}</div>}{<div className={"space-y-2 text-xs text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100"}>{<div className={"flex justify-between py-1 border-b border-slate-200/60"}>{<span>Primary Inference Model:</span>}{<strong className={"text-slate-800"}>gemini-2.5-flash</strong>}</div>}{<div className={"flex justify-between py-1 border-b border-slate-200/60"}>{<span>Fallback Secondary Model:</span>}{<strong className={"text-slate-800"}>gemini-2.5-pro</strong>}</div>}{<div className={"flex justify-between py-1 border-b border-slate-200/60"}>{<span>Inference Timeout:</span>}{<strong className={"text-slate-800"}>3,500 ms</strong>}</div>}{<div className={"flex justify-between py-1"}>{<span>Token Context Window:</span>}{<strong className={"text-slate-800"}>1,048,576 tokens</strong>}</div>}</div>}{<div className={"flex justify-end pt-2"}>{<Button size={"sm"} onClick={() => showToast("Platform cluster settings updated")}>Save Cluster Config</Button>}</div>}</div>}{<div className={"bg-white rounded-xl border border-slate-200 p-6 space-y-3 shadow-2xs"}>{<div className={"flex items-center gap-3"}>{<div className={"p-2 bg-slate-100 text-slate-700 rounded-lg"}>{<ShieldCheck className={"w-5 h-5"} />}</div>}{<div>{<h3 className={"text-sm font-semibold text-slate-900"}>Privacy &amp; Data Isolation Safeguards</h3>}{<p className={"text-xs text-slate-500"}>Tenant encryption and message privacy</p>}</div>}</div>}{<p className={"text-xs text-slate-600 leading-relaxed"}>Cross-tenant database queries strictly adhere to tenant organization ID boundaries. Customer chat messages and API keys remain encrypted at rest and never shared across tenant workspaces.</p>}</div>}</div>;
-};
-export {
-  AdminSettingsPage
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <PageHeader
+        title="Platform System Configuration"
+        description="Global sandbox parameters, rate limiting thresholds, and security compliance."
+        badge="Platform Config"
+      />
+
+      <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-blue-50 text-blue-700 rounded-lg">
+            <Cpu className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Model Inference Infrastructure
+            </h3>
+            <p className="text-xs text-slate-500">
+              Google Gemini 2.5 Flash cluster routing
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <div className="flex justify-between py-1 border-b border-slate-200/60">
+            <span>Primary Inference Model:</span>
+            <strong className="text-slate-800">gemini-2.5-flash</strong>
+          </div>
+          <div className="flex justify-between py-1 border-b border-slate-200/60">
+            <span>Fallback Secondary Model:</span>
+            <strong className="text-slate-800">gemini-2.5-pro</strong>
+          </div>
+          <div className="flex justify-between py-1 border-b border-slate-200/60">
+            <span>Inference Timeout:</span>
+            <strong className="text-slate-800">3,500 ms</strong>
+          </div>
+          <div className="flex justify-between py-1">
+            <span>Token Context Window:</span>
+            <strong className="text-slate-800">1,048,576 tokens</strong>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button
+            size="sm"
+            onClick={() => showToast("Platform cluster settings updated")}
+          >
+            Save Cluster Config
+          </Button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-slate-100 text-slate-700 rounded-lg">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Privacy &amp; Data Isolation Safeguards
+            </h3>
+            <p className="text-xs text-slate-500">
+              Tenant encryption and message privacy
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Cross-tenant database queries strictly adhere to tenant organization ID boundaries. Customer chat messages and API keys remain encrypted at rest and never shared across tenant workspaces.
+        </p>
+      </div>
+    </div>
+  );
 };

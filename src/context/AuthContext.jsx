@@ -4,10 +4,15 @@ const AuthContext = createContext(void 0);
 const ROLE_STORAGE_KEY = "conversly_active_role";
 const PERMISSION_STORAGE_KEY = "conversly_salesperson_all_leads";
 const USER_OVERRIDES_KEY = "conversly_user_overrides_v2";
+const LOGGED_OUT_KEY = "conversly_is_logged_out";
+
 const AuthProvider = ({ children }) => {
   const [role, setRole] = useState(() => {
     const saved = localStorage.getItem(ROLE_STORAGE_KEY);
     return saved === "owner" || saved === "salesperson" ? saved : "owner";
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem(LOGGED_OUT_KEY) !== "true";
   });
   const [salespersonCanViewAllLeads, setSalespersonCanViewAllLeadsState] = useState(() => {
     const saved = localStorage.getItem(PERMISSION_STORAGE_KEY);
@@ -21,6 +26,19 @@ const AuthProvider = ({ children }) => {
       return {};
     }
   });
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    localStorage.setItem(LOGGED_OUT_KEY, "true");
+  };
+
+  const login = (newRole = "owner") => {
+    setRole(newRole);
+    setIsAuthenticated(true);
+    localStorage.removeItem(LOGGED_OUT_KEY);
+    localStorage.setItem(ROLE_STORAGE_KEY, newRole);
+  };
+
   const setSalespersonCanViewAllLeads = (val) => {
     setSalespersonCanViewAllLeadsState(val);
     localStorage.setItem(PERMISSION_STORAGE_KEY, String(val));
@@ -45,6 +63,8 @@ const AuthProvider = ({ children }) => {
   };
   const switchRole = (newRole) => {
     setRole(newRole);
+    setIsAuthenticated(true);
+    localStorage.removeItem(LOGGED_OUT_KEY);
     localStorage.setItem(ROLE_STORAGE_KEY, newRole);
   };
   useEffect(() => {
@@ -57,6 +77,9 @@ const AuthProvider = ({ children }) => {
         updateCurrentUser,
         role,
         switchRole,
+        isAuthenticated,
+        login,
+        logout,
         isOwner: role === "owner",
         isSalesperson: role === "salesperson",
         isSalesManager: role === "owner",

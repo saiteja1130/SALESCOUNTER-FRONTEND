@@ -1,175 +1,227 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import { useToast } from "../../context/ToastContext";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
-const LeadModal = ({
-  isOpen,
-  onClose,
-  leadToEdit
-}) => {
+import { Textarea } from "../ui/Textarea";
+
+const LeadModal = ({ isOpen, onClose, leadToEdit }) => {
   const { teamMembers, addLead, updateLead } = useApp();
   const { showToast } = useToast();
-  const [name, setName] = useState(leadToEdit?.name || "");
-  const [phone, setPhone] = useState(leadToEdit?.phone || "");
-  const [email, setEmail] = useState(leadToEdit?.email || "");
-  const [status, setStatus] = useState(leadToEdit?.status || "New");
-  const [assignedToId, setAssignedToId] = useState(
-    leadToEdit?.assignedToId || teamMembers[0]?.id || ""
-  );
-  const [source, setSource] = useState(leadToEdit?.source || "WhatsApp Inbound");
-  const [interestedProduct, setInterestedProduct] = useState(
-    leadToEdit?.collectedData?.interestedProduct || ""
-  );
-  const [budgetRange, setBudgetRange] = useState(
-    leadToEdit?.collectedData?.budgetRange || "Bespoke Package"
-  );
-  const [deliveryCity, setDeliveryCity] = useState(
-    leadToEdit?.collectedData?.deliveryCity || ""
-  );
+
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("New");
+  const [assignedToId, setAssignedToId] = useState("");
+  const [source, setSource] = useState("WhatsApp Inbound");
+  const [interestedProduct, setInterestedProduct] = useState("");
+  const [budgetRange, setBudgetRange] = useState("Bespoke Package");
+  const [deliveryCity, setDeliveryCity] = useState("");
+
+  // Fix bug: reset form fields whenever modal opens or leadToEdit changes
+  useEffect(() => {
+    if (isOpen) {
+      if (leadToEdit) {
+        setName(leadToEdit.name || "");
+        setPhone(leadToEdit.phone || "");
+        setEmail(leadToEdit.email || "");
+        setStatus(leadToEdit.status || "New");
+        setAssignedToId(leadToEdit.assignedToId || teamMembers[0]?.id || "");
+        setSource(leadToEdit.source || "WhatsApp Inbound");
+        setInterestedProduct(leadToEdit.collectedData?.interestedProduct || "");
+        setBudgetRange(
+          leadToEdit.collectedData?.budgetRange || "Bespoke Package"
+        );
+        setDeliveryCity(leadToEdit.collectedData?.deliveryCity || "");
+      } else {
+        setName("");
+        setPhone("");
+        setEmail("");
+        setStatus("New");
+        setAssignedToId(teamMembers[0]?.id || "");
+        setSource("WhatsApp Inbound");
+        setInterestedProduct("");
+        setBudgetRange("Bespoke Package");
+        setDeliveryCity("");
+      }
+    }
+  }, [isOpen, leadToEdit, teamMembers]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) {
-      showToast("Name and WhatsApp phone number are required", "error");
+      showToast("Full name and WhatsApp phone number are required", "error");
       return;
     }
+
     const assignee = teamMembers.find((t) => t.id === assignedToId);
+
     if (leadToEdit) {
       updateLead(leadToEdit.id, {
-        name,
-        phone,
-        email,
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
         status,
         assignedToId,
         assignedToName: assignee?.name || "Unassigned",
         source,
         collectedData: {
           ...leadToEdit.collectedData,
-          interestedProduct,
+          interestedProduct: interestedProduct.trim(),
           budgetRange,
-          deliveryCity
-        }
+          deliveryCity: deliveryCity.trim(),
+        },
       });
       showToast("Lead details updated successfully");
     } else {
       addLead({
-        name,
-        phone,
-        email,
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
         status,
         assignedToId,
         assignedToName: assignee?.name || "Unassigned",
         source,
-        tags: ["New Lead", "Inbound"],
-        aiHandled: true,
-        needsAttention: false,
         collectedData: {
-          interestedProduct,
+          interestedProduct: interestedProduct.trim(),
           budgetRange,
-          deliveryCity
-        }
+          deliveryCity: deliveryCity.trim(),
+        },
       });
-      showToast("New WhatsApp lead registered and AI assigned");
+      showToast("New WhatsApp lead created successfully");
     }
     onClose();
   };
-  const statusOptions = ["New", "Interested", "In-followup", "Converted", "Lost"];
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={leadToEdit ? "Edit Lead Profile" : "Add New WhatsApp Lead"}
-      description="Enter customer contact details, sales stage, and qualification criteria."
-      maxWidth="md"
+      title={leadToEdit ? "Edit Lead Details" : "Add New Lead"}
+      description={
+        leadToEdit
+          ? "Update contact profile, sales stage, and AI-extracted qualification data."
+          : "Manually add a prospect into your WhatsApp CRM pipeline."
+      }
+      maxWidth="lg"
       footer={
-        <>
+        <div className="flex items-center justify-end gap-2.5 w-full">
           <Button variant="outline" size="sm" onClick={onClose}>
             Cancel
           </Button>
           <Button size="sm" onClick={handleSubmit}>
             {leadToEdit ? "Save Changes" : "Create Lead"}
           </Button>
-        </>
+        </div>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Full Name *"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Marcus Aurelius"
+            placeholder="e.g. Liam Foster"
             required
           />
           <Input
-            label="WhatsApp Phone *"
+            label="WhatsApp Mobile Phone *"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="+1 (555) 000-0000"
+            placeholder="e.g. +1 (555) 234-5678"
             required
           />
         </div>
-        <Input
-          label="Email Address"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@company.com"
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Email Address"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="e.g. liam@example.com"
+          />
           <Select
-            label="Lead Status"
+            label="Pipeline Stage"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
-            {statusOptions.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
+            <option value="New">New</option>
+            <option value="Interested">Interested</option>
+            <option value="In-followup">In-followup</option>
+            <option value="Converted">Converted</option>
+            <option value="Lost">Lost</option>
           </Select>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
-            label="Assigned Salesperson"
+            label="Assigned Sales Representative"
             value={assignedToId}
             onChange={(e) => setAssignedToId(e.target.value)}
           >
-            {teamMembers.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.role})
+            {teamMembers.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name} ({member.role === "owner" ? "Sales Manager" : "Sales Rep"})
               </option>
             ))}
           </Select>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
           <Select
-            label="Acquisition Channel"
+            label="Inbound Channel / Source"
             value={source}
             onChange={(e) => setSource(e.target.value)}
           >
-            <option value="WhatsApp Inbound">WhatsApp Inbound</option>
-            <option value="Website Click-to-Chat">Website Click-to-Chat</option>
-            <option value="Instagram Ad">Instagram Ad</option>
-            <option value="Manual">Manual Entry</option>
+            <option value="WhatsApp Inbound">WhatsApp Inbound (Organic)</option>
+            <option value="Instagram Ad -> WhatsApp">Instagram Ad - WhatsApp</option>
+            <option value="Website QR Scan">Website QR Scan</option>
+            <option value="VIP Referral">VIP Referral</option>
+            <option value="Trade Show / Event">Trade Show / Event</option>
           </Select>
-          <Input
-            label="Delivery City / Region"
-            value={deliveryCity}
-            onChange={(e) => setDeliveryCity(e.target.value)}
-            placeholder="e.g. Chicago, IL"
-          />
         </div>
-        <Input
-          label="Interested Product / Catalog Item"
-          value={interestedProduct}
-          onChange={(e) => setInterestedProduct(e.target.value)}
-          placeholder="e.g. Verona Conference Table"
-        />
+
+        <div className="pt-2 border-t border-slate-100">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Qualification Data (AI Extracted)
+          </div>
+
+          <div className="space-y-3">
+            <Input
+              label="Interested Product or Service"
+              value={interestedProduct}
+              onChange={(e) => setInterestedProduct(e.target.value)}
+              placeholder="e.g. Artisan Dining Table, Velvet Sectional"
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Budget Category"
+                value={budgetRange}
+                onChange={(e) => setBudgetRange(e.target.value)}
+              >
+                <option value="Under $1,000">Under $1,000</option>
+                <option value="$1,000 - $3,000">$1,000 - $3,000</option>
+                <option value="$3,000 - $7,500">$3,000 - $7,500</option>
+                <option value="$7,500 - $15,000">$7,500 - $15,000</option>
+                <option value="$15,000+ Premium">$15,000+ Premium</option>
+                <option value="Bespoke Package">Bespoke Package</option>
+              </Select>
+
+              <Input
+                label="Delivery City / Area"
+                value={deliveryCity}
+                onChange={(e) => setDeliveryCity(e.target.value)}
+                placeholder="e.g. Seattle, WA"
+              />
+            </div>
+          </div>
+        </div>
       </form>
     </Modal>
   );
 };
-export {
-  LeadModal
-};
+
+export { LeadModal };
