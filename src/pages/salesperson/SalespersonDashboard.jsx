@@ -49,7 +49,7 @@ const SalespersonDashboard = () => {
     (l) => !l.needsAttention && !l.aiHandled
   ).length;
   const myScheduled = scheduledFollowUps.filter(
-    (s) => s.assignedToId === currentUser.id && s.status === "pending"
+    (s) => s.assignedToId === currentUser?.id && s.status === "pending"
   );
   const myConverted = myAssignedLeads.filter((l) => l.status === "Converted");
   const myConversionRate =
@@ -88,7 +88,7 @@ const SalespersonDashboard = () => {
       {/* Page Header */}
       <PageHeader
         title="Sales Work Queue"
-        description={`Personal queue, pending client replies, and follow-ups assigned to ${currentUser.name}.`}
+        description={`Personal queue, pending client replies, and follow-ups assigned to ${currentUser?.name || "you"}.`}
         badge={
           <span className="text-xs bg-emerald-50 text-emerald-800 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
             Personal Queue

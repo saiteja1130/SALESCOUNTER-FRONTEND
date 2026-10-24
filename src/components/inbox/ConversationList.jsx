@@ -13,6 +13,8 @@ import {
   PhoneCall,
   Radio,
   SlidersHorizontal,
+  ArrowUpDown,
+  User
 } from "lucide-react";
 
 export const ConversationList = ({ selectedLeadId, onSelectLead }) => {
@@ -91,7 +93,7 @@ export const ConversationList = ({ selectedLeadId, onSelectLead }) => {
         return isWaiting;
       }
       if (activeFilter === "ai") return lead.aiHandled;
-      if (activeFilter === "mine") return lead.assignedToId === currentUser.id;
+      if (activeFilter === "mine") return lead.assignedToId === currentUser?.id;
       return true;
     });
 
@@ -109,7 +111,7 @@ export const ConversationList = ({ selectedLeadId, onSelectLead }) => {
         threadB[threadB.length - 1]?.timestamp || b.lastContactAt || b.createdAt;
       return new Date(timeB).getTime() - new Date(timeA).getTime();
     });
-  }, [filteredLeads, messages, searchQuery, activeFilter, selectedChannel, sortBy, currentUser.id]);
+  }, [filteredLeads, messages, searchQuery, activeFilter, selectedChannel, sortBy, currentUser?.id]);
 
   const clearAllFilters = () => {
     setSearchQuery("");

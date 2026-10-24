@@ -6,7 +6,6 @@ import { Button } from "../ui/Button";
 import {
   Send,
   Sparkles,
-  Paperclip,
   Zap,
   Smile,
   Eye
@@ -24,6 +23,7 @@ export const MessageComposer = ({
   const [reviewDraftOpen, setReviewDraftOpen] = useState(false);
   const [editableDraft, setEditableDraft] = useState("");
   const [enterToSend, setEnterToSend] = useState(true);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     setText(draft || "");
@@ -56,11 +56,22 @@ export const MessageComposer = ({
     showToast("Reviewed AI draft inserted into composer.");
   };
 
-  const handleSend = () => {
-    if (!text.trim()) return;
-    sendMessage(leadId, text.trim(), "salesperson");
-    handleTextChange("");
-    showToast("WhatsApp message sent to customer.");
+  const handleSend = async () => {
+    const messageText = text.trim();
+    if (!messageText || isSending) return;
+    setIsSending(true);
+    try {
+      const result = await sendMessage(leadId, messageText, "salesperson");
+      if (result?.sendStatus === "failed") {
+        throw new Error("WhatsApp could not send the message.");
+      }
+      handleTextChange("");
+      showToast(result?.sendStatus === "sent" ? "WhatsApp message sent." : "Message queued for WhatsApp delivery.", "success");
+    } catch (err) {
+      showToast(err.message || "Failed to queue WhatsApp message. Your text is still in the composer.", "error");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -143,19 +154,6 @@ export const MessageComposer = ({
             <button
               type="button"
               className="p-1.5 rounded-md hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
-              title="Media Attachments [Demo]: PDF, images, voice notes"
-              aria-label="Attach file (Demo)"
-              onClick={() =>
-                showToast(
-                  "Media Attachments [Demo]: In production, uploads PDFs or catalogs via WhatsApp Cloud API."
-                )
-              }
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              className="p-1.5 rounded-md hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
               title="Insert greeting emoji"
               aria-label="Insert emoji"
               onClick={() => handleTextChange(text + " 👋")}
@@ -180,11 +178,11 @@ export const MessageComposer = ({
             <button
               type="button"
               onClick={handleSend}
-              disabled={!text.trim()}
+              disabled={!text.trim() || isSending}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-xs cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Send</span>
+              <span>{isSending ? "Sending…" : "Send"}</span>
             </button>
           </div>
         </div>

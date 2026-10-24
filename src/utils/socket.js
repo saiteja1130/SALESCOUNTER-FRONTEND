@@ -2,8 +2,9 @@ import { io } from "socket.io-client";
 
 let socket = null;
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const SOCKET_SERVER_URL =
-  import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+  import.meta.env.VITE_SOCKET_URL || API_URL.replace(/\/api\/?$/, "");
 
 export function getSocket() {
   if (!socket) {
@@ -12,8 +13,9 @@ export function getSocket() {
       transports: ["websocket", "polling"],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
     });
 
     socket.on("connect", () => {

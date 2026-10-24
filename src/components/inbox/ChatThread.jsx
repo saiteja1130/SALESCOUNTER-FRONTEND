@@ -1,16 +1,19 @@
 import { useRef, useEffect, useState, Fragment } from "react";
 import { useApp } from "../../context/AppContext";
 import { useToast } from "../../context/ToastContext";
+import { getSocket } from "../../utils/socket";
 import { Avatar } from "../ui/Avatar";
 import {
   User,
   CheckCheck,
   Sparkles,
   UserCheck,
+  Check,
   PanelRightOpen,
   PanelRightClose,
   ArrowLeft,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from "lucide-react";
 
 export const ChatThread = ({
@@ -29,6 +32,14 @@ export const ChatThread = ({
     if (lead?.id && typeof fetchMessages === "function") {
       fetchMessages(lead.id);
     }
+  }, [lead?.id, fetchMessages]);
+
+  useEffect(() => {
+    if (!lead?.id) return;
+    const socket = getSocket();
+    const refreshOpenThread = () => fetchMessages(lead.id);
+    socket.on("connect", refreshOpenThread);
+    return () => socket.off("connect", refreshOpenThread);
   }, [lead?.id, fetchMessages]);
 
   const scrollToBottom = () => {
@@ -238,7 +249,7 @@ export const ChatThread = ({
         <div className="flex justify-center mb-2">
           <div className="bg-slate-100 text-slate-500 text-xs px-3.5 py-1 rounded-full border border-slate-200 shadow-2xs flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Official WhatsApp Cloud API • End-to-end encrypted session</span>
+            <span>WhatsApp linked device • Text messages</span>
           </div>
         </div>
 
@@ -246,6 +257,21 @@ export const ChatThread = ({
           const isCustomer = msg.sender === "lead";
           const isAi = msg.sender === "ai";
           const isSalesperson = msg.sender === "salesperson";
+          const deliveryStatus = msg.deliveryStatus || msg.sendStatus;
+          const DeliveryIcon = deliveryStatus === "failed"
+            ? AlertTriangle
+            : ["queued", "sending", "retryable", "uncertain"].includes(deliveryStatus)
+              ? Clock
+              : deliveryStatus === "sent"
+                ? Check
+                : CheckCheck;
+          const deliveryColor = deliveryStatus === "failed"
+            ? "text-rose-400"
+            : deliveryStatus === "read"
+              ? "text-sky-300"
+              : ["queued", "sending", "retryable", "uncertain", "sent"].includes(deliveryStatus)
+                ? "text-slate-400"
+                : "text-emerald-400";
 
           return (
             <div
@@ -296,10 +322,10 @@ export const ChatThread = ({
 
                 {!isCustomer && (
                   <div className="flex items-center justify-end gap-1 mt-1.5">
-                    <CheckCheck
-                      className={`w-4 h-4 ${
-                        isSalesperson ? "text-emerald-400" : "text-sky-600"
-                      }`}
+                    <DeliveryIcon
+                      className={`w-4 h-4 ${deliveryColor}`}
+                      aria-label={`Message ${deliveryStatus || "sent"}`}
+                      title={`Message ${deliveryStatus || "sent"}`}
                     />
                   </div>
                 )}

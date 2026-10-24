@@ -215,10 +215,10 @@ const AdminShell = ({ children }) => {
 
         <div className="p-3 border-t border-slate-800 flex items-center justify-between bg-slate-900 gap-2">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <Avatar name={currentUser.name} size="sm" />
+            <Avatar name={currentUser?.name || "Admin"} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-white truncate">
-                {currentUser.name}
+                {currentUser?.name || "Admin"}
               </div>
               <div className="text-xs text-slate-400 truncate">
                 Platform Admin

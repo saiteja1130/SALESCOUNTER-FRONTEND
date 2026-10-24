@@ -66,6 +66,7 @@ const AppProvider = ({ children }) => {
   const [leads, setLeads] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [invitations, setInvitations] = useState([]);
+  const [messages,setMessages]=useState([])
   const [seatUsage, setSeatUsage] = useState({
     maxAllowed: 1,
     currentUsed: 0,
@@ -154,7 +155,7 @@ const AppProvider = ({ children }) => {
         } : m
       )
     );
-  }, [currentUser.name, currentUser.email, currentUser.phone, currentUser.id]);
+  }, [currentUser?.name, currentUser?.email, currentUser?.phone, currentUser?.id]);
   const setRoundRobinEnabled = (val) => {
     setRoundRobinEnabledState(val);
     localStorage.setItem(STORAGE_KEYS.ROUND_ROBIN, String(val));
@@ -284,6 +285,7 @@ const AppProvider = ({ children }) => {
   const [whatsappConnections, setWhatsappConnections] = useState([]);
   const [isWhatsAppLoading, setIsWhatsAppLoading] = useState(false);
 
+
   const fetchWhatsAppConnections = useCallback(async () => {
     if (!isAuthenticated) {
       setWhatsappConnections([]);
@@ -332,6 +334,12 @@ const AppProvider = ({ children }) => {
   useEffect(() => {
     if (!isAuthenticated) return;
     const socket = getSocket();
+    const handleSocketConnect = () => {
+      // Socket events are transient; refetch authoritative state after reconnect.
+      fetchWhatsAppConnections();
+      fetchLeads();
+      refreshUsage();
+    };
 
     const handleConnStatus = (data) => {
       setWhatsappConnections((prev) => {
@@ -367,12 +375,14 @@ const AppProvider = ({ children }) => {
       }
     };
 
+    socket.on("connect", handleSocketConnect);
     socket.on("whatsapp:connection_status", handleConnStatus);
     socket.on("whatsapp:lead_updated", handleLeadUpdate);
     socket.on("whatsapp:message_received", handleMessageReceived);
     socket.on("whatsapp:message_updated", handleMessageUpdated);
 
     return () => {
+      socket.off("connect", handleSocketConnect);
       socket.off("whatsapp:connection_status", handleConnStatus);
       socket.off("whatsapp:lead_updated", handleLeadUpdate);
       socket.off("whatsapp:message_received", handleMessageReceived);
@@ -544,8 +554,8 @@ const AppProvider = ({ children }) => {
   const addLeadNote = (leadId, text) => {
     const newNote = {
       id: `note-${Date.now()}`,
-      authorId: currentUser.id,
-      authorName: currentUser.name,
+      authorId: currentUser?.id,
+      authorName: currentUser?.name || "User",
       text,
       createdAt: ( new Date()).toISOString()
     };
@@ -570,8 +580,9 @@ const AppProvider = ({ children }) => {
       senderName,
       text,
       timestamp: (new Date()).toISOString(),
-      isDelivered: true,
+      isDelivered: false,
       isRead: false,
+      sendStatus: sender === "lead" ? "sent" : "queued",
     };
 
     setMessages((prev) => ({
@@ -588,20 +599,37 @@ const AppProvider = ({ children }) => {
     if (isAuthenticated && sender !== "lead") {
       try {
         const res = await apiClient.post(`/leads/${leadId}/messages`, { text });
-        if (res?.success && res.message) {
-          setMessages((prev) => ({
-            ...prev,
-            [leadId]: (prev[leadId] || []).map((m) => (m.id === tempId ? res.message : m)),
-          }));
+        if (!res?.success || !res.message) {
+          throw new Error(res?.message || "WhatsApp did not accept the message.");
         }
+        setMessages((prev) => ({
+          ...prev,
+          [leadId]: (() => {
+            const current = prev[leadId] || [];
+            const alreadySynced = current.find((m) => m.id === res.message.id);
+            if (alreadySynced) {
+              return current.filter((m) => m.id !== tempId);
+            }
+            return current.map((m) => (m.id === tempId ? res.message : m));
+          })(),
+        }));
+        return res.message;
       } catch (err) {
         console.error("[SendMessage Error]", err);
+        setMessages((prev) => ({
+          ...prev,
+          [leadId]: (prev[leadId] || []).map((m) =>
+            m.id === tempId ? { ...m, sendStatus: "failed", isDelivered: false } : m
+          ),
+        }));
+        throw err;
       }
     } else if (sender === "lead" && targetLead?.aiHandled) {
       setTimeout(() => {
         simulateAiResponse(leadId, text);
       }, 1200);
     }
+    return newMsg;
   };
   const simulateAiResponse = (leadId, customQuestion) => {
     const targetLead = leads.find((l) => l.id === leadId);

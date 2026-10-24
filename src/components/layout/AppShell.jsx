@@ -347,10 +347,10 @@ const AppShell = ({ children }) => {
         {/* User Footer */}
         <div className="p-3 border-t border-slate-200/80 flex items-center justify-between bg-white gap-2">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <Avatar name={currentUser.name} size="sm" showBadge badgeColor="green" />
+            <Avatar name={currentUser?.name || "User"} size="sm" showBadge badgeColor="green" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-slate-900 truncate">
-                {currentUser.name}
+                {currentUser?.name || "User"}
               </div>
               <div className="text-xs text-slate-500 truncate font-medium">
                 {role === "owner" ? "Sales Manager" : "Sales Rep"}
