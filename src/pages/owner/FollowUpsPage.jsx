@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useApp } from "../../context/AppContext";
 import { useToast } from "../../context/ToastContext";
 import { RuleBuilderModal } from "../../components/followups/RuleBuilderModal";
@@ -21,6 +21,7 @@ import {
   Sliders,
   Users,
   MessageSquare,
+  AlertTriangle,
 } from "lucide-react";
 
 export const FollowUpsPage = () => {
@@ -30,6 +31,11 @@ export const FollowUpsPage = () => {
     deleteFollowUpRule,
     scheduledFollowUps,
     leads,
+    organization,
+    quietHoursSettings,
+    saveQuietHours,
+    isFollowUpsLoading,
+    entitlementUsage,
   } = useApp();
   const { showToast } = useToast();
 
@@ -41,9 +47,24 @@ export const FollowUpsPage = () => {
   const [globalQuietStart, setGlobalQuietStart] = useState("21:00");
   const [globalQuietEnd, setGlobalQuietEnd] = useState("08:00");
   const [morningReleaseTime, setMorningReleaseTime] = useState("08:15");
+  const [isSavingQuietHours, setIsSavingQuietHours] = useState(false);
 
-  const userTimezone =
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+  useEffect(() => {
+    if (quietHoursSettings) {
+      if (quietHoursSettings.quietStart) setGlobalQuietStart(quietHoursSettings.quietStart);
+      if (quietHoursSettings.quietEnd) setGlobalQuietEnd(quietHoursSettings.quietEnd);
+      if (quietHoursSettings.morningReleaseTime)
+        setMorningReleaseTime(quietHoursSettings.morningReleaseTime);
+    }
+  }, [quietHoursSettings]);
+
+  const activeTimezone =
+    quietHoursSettings?.timezone || organization?.timezone || "Asia/Kolkata";
+
+  const canAccessFollowUps =
+    entitlementUsage?.entitlements?.canAccessFollowUps ?? true;
+
+  const activeRulesCount = followUpRules.filter((r) => r.isActive).length;
 
   const handleOpenCreate = () => {
     setSelectedRule(null);
@@ -63,19 +84,38 @@ export const FollowUpsPage = () => {
     setIsRuleModalOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!ruleToDelete) return;
-    deleteFollowUpRule(ruleToDelete.id);
-    showToast(`Removed follow-up rule "${ruleToDelete.title}"`);
-    setRuleToDelete(null);
+    try {
+      await deleteFollowUpRule(ruleToDelete.id);
+      showToast(`Removed follow-up rule "${ruleToDelete.title}"`);
+    } catch (err) {
+      showToast(err.message || "Failed to delete rule", "error");
+    } finally {
+      setRuleToDelete(null);
+    }
   };
 
-  const handleSaveQuietHours = (e) => {
-    e.preventDefault();
-    setQuietHoursModalOpen(false);
-    showToast(
-      `Quiet hours schedule updated (${globalQuietStart} – ${globalQuietEnd}, release at ${morningReleaseTime})`
-    );
+  const handleSaveQuietHours = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    try {
+      setIsSavingQuietHours(true);
+      await saveQuietHours({
+        enabled: true,
+        quietStart: globalQuietStart,
+        quietEnd: globalQuietEnd,
+        morningReleaseTime,
+        timezone: activeTimezone,
+      });
+      setQuietHoursModalOpen(false);
+      showToast(
+        `Quiet hours schedule updated (${globalQuietStart} – ${globalQuietEnd}, release at ${morningReleaseTime})`
+      );
+    } catch (err) {
+      showToast(err.message || "Failed to save quiet hours", "error");
+    } finally {
+      setIsSavingQuietHours(false);
+    }
   };
 
   const getTimelineSentence = (rule) => {
@@ -99,17 +139,34 @@ export const FollowUpsPage = () => {
       <PageHeader
         title="Follow-up Automations"
         description="Automated timing triggers and cadences that re-engage leads before they go cold."
-        badge={`${followUpRules.length} Rules Active`}
+        badge={`${activeRulesCount} Active (${followUpRules.length} Total)`}
         actions={
           <Button
             size="sm"
             icon={<Plus className="w-4 h-4" />}
             onClick={handleOpenCreate}
+            disabled={!canAccessFollowUps}
           >
             New Follow-up Rule
           </Button>
         }
       />
+
+      {/* Plan Entitlement Warning if locked */}
+      {!canAccessFollowUps && (
+        <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 flex items-start gap-3 text-xs shadow-xs">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <h4 className="font-semibold text-sm text-amber-950">
+              Follow-up Automations Add-on Required
+            </h4>
+            <p className="leading-relaxed text-amber-800">
+              Automated cadence triggers are available on Enterprise or as an add-on for Basic & Growth subscriptions.
+              Existing rules and queued jobs are preserved in pause mode until your subscription unlocks follow-ups.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Quiet Hours Banner */}
       <div className="bg-slate-900 text-white p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs shadow-xs border border-slate-800">
@@ -123,12 +180,12 @@ export const FollowUpsPage = () => {
                 Quiet Hours Protection Active
               </span>
               <span className="text-xs text-emerald-400 font-medium px-2 py-0.5 bg-emerald-950/80 rounded border border-emerald-800/80">
-                {userTimezone}
+                {activeTimezone}
               </span>
             </div>
             <p className="text-slate-300 leading-relaxed text-xs">
               Automated messages between <strong>{globalQuietStart}</strong> and{" "}
-              <strong>{globalQuietEnd}</strong> ({userTimezone}) are paused to respect customer sleep schedules. Queued messages automatically resume and batch-release at{" "}
+              <strong>{globalQuietEnd}</strong> ({activeTimezone}) are paused to respect customer sleep schedules. Queued messages automatically resume and batch-release at{" "}
               <strong>{morningReleaseTime}</strong>.
             </p>
           </div>
@@ -277,13 +334,18 @@ export const FollowUpsPage = () => {
                     <Button
                       size="xs"
                       variant="outline"
-                      onClick={() => {
-                        toggleFollowUpRule(rule.id);
-                        showToast(
-                          rule.isActive
-                            ? `Paused rule "${rule.title}"`
-                            : `Reactivated rule "${rule.title}"`
-                        );
+                      onClick={async () => {
+                        try {
+                          const res = await toggleFollowUpRule(rule.id);
+                          showToast(
+                            res?.message ||
+                              (rule.isActive
+                                ? `Paused rule "${rule.title}"`
+                                : `Reactivated rule "${rule.title}"`)
+                          );
+                        } catch (err) {
+                          showToast(err.message || "Failed to toggle rule status", "error");
+                        }
                       }}
                       icon={
                         rule.isActive ? (
@@ -358,11 +420,12 @@ export const FollowUpsPage = () => {
               variant="outline"
               size="sm"
               onClick={() => setQuietHoursModalOpen(false)}
+              disabled={isSavingQuietHours}
             >
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSaveQuietHours}>
-              Save Quiet Hours Schedule
+            <Button size="sm" onClick={handleSaveQuietHours} disabled={isSavingQuietHours}>
+              {isSavingQuietHours ? "Saving..." : "Save Quiet Hours Schedule"}
             </Button>
           </div>
         }
@@ -408,7 +471,7 @@ export const FollowUpsPage = () => {
                 Active Organization Timezone
               </label>
               <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800">
-                {userTimezone}
+                {activeTimezone}
               </div>
             </div>
           </div>

@@ -36,7 +36,13 @@ const LeadsTableView = ({
   onEditLead,
 }) => {
   const isFiltersActive = hasActiveFilters || hasActiveFilter || false;
-  const { teamMembers, assignLead, changeLeadStatus } = useApp();
+  const {
+    teamMembers,
+    assignLead,
+    changeLeadStatus,
+    bulkAssignLeads,
+    bulkStatusUpdate,
+  } = useApp();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -84,17 +90,34 @@ const LeadsTableView = ({
     );
   };
 
-  const handleBulkAssign = () => {
-    if (!bulkAssignee) return;
-    selectedIds.forEach((id) => assignLead(id, bulkAssignee));
-    showToast(`Assigned ${selectedIds.length} leads to representative`);
-    setSelectedIds([]);
+  const handleBulkAssign = async () => {
+    if (!bulkAssignee || selectedIds.length === 0) return;
+    try {
+      if (bulkAssignLeads) {
+        await bulkAssignLeads(selectedIds, bulkAssignee);
+      } else {
+        selectedIds.forEach((id) => assignLead(id, bulkAssignee));
+      }
+      showToast(`Assigned ${selectedIds.length} leads to representative`);
+      setSelectedIds([]);
+    } catch (err) {
+      showToast(err.message || "Failed to bulk assign leads", "error");
+    }
   };
 
-  const handleBulkStatus = () => {
-    selectedIds.forEach((id) => changeLeadStatus(id, bulkStatus));
-    showToast(`Updated status for ${selectedIds.length} leads`);
-    setSelectedIds([]);
+  const handleBulkStatus = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      if (bulkStatusUpdate) {
+        await bulkStatusUpdate(selectedIds, bulkStatus);
+      } else {
+        selectedIds.forEach((id) => changeLeadStatus(id, bulkStatus));
+      }
+      showToast(`Updated status for ${selectedIds.length} leads to ${bulkStatus}`);
+      setSelectedIds([]);
+    } catch (err) {
+      showToast(err.message || "Failed to bulk update status", "error");
+    }
   };
 
   const handleExportSelected = () => {
@@ -158,11 +181,14 @@ const LeadsTableView = ({
               className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500 cursor-pointer"
             >
               <option value="">Assign sales rep...</option>
-              {teamMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
+              <option value="unassigned">Unassigned (Queue)</option>
+              {teamMembers
+                .filter((m) => m.role !== "owner" && m.status !== "disabled")
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} (Sales Rep)
+                  </option>
+                ))}
             </select>
             <Button
               size="sm"

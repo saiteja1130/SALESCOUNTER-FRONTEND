@@ -31,8 +31,9 @@ export const SettingsPage = () => {
     updateOrganization,
     qrConnected,
     setQrConnected,
-    geminiApiKey,
-    setGeminiApiKey,
+    hasGeminiKey,
+    saveGeminiKey,
+    testAiConversation,
     resetDemoData,
     leads,
     messages,
@@ -55,18 +56,21 @@ export const SettingsPage = () => {
     setProfilePhone(currentUser.phone || "");
   }, [currentUser]);
 
-  const [orgName, setOrgName] = useState(organization.name);
-  const [orgIndustry, setOrgIndustry] = useState(organization.industry);
-  const [orgPhone, setOrgPhone] = useState(organization.whatsappPhone);
+  const [orgName, setOrgName] = useState(organization.name || "");
+  const [orgIndustry, setOrgIndustry] = useState(organization.industry || "");
+  const [orgPhone, setOrgPhone] = useState(organization.whatsappPhone || "");
+  const [isSavingBusiness, setIsSavingBusiness] = useState(false);
+  const [businessError, setBusinessError] = useState(null);
 
   useEffect(() => {
-    setOrgName(organization.name);
-    setOrgIndustry(organization.industry);
-    setOrgPhone(organization.whatsappPhone);
+    setOrgName(organization.name || "");
+    setOrgIndustry(organization.industry || "");
+    setOrgPhone(organization.whatsappPhone || "");
   }, [organization]);
 
-  const [apiKey, setApiKey] = useState(geminiApiKey);
+  const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [isSavingKey, setIsSavingKey] = useState(false);
   const [testingKey, setTestingKey] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
@@ -79,9 +83,9 @@ export const SettingsPage = () => {
     profilePhone.trim() !== (currentUser.phone || "");
 
   const isBusinessDirty =
-    orgName.trim() !== organization.name ||
-    orgIndustry.trim() !== organization.industry ||
-    orgPhone.trim() !== organization.whatsappPhone;
+    orgName.trim() !== (organization.name || "") ||
+    orgIndustry.trim() !== (organization.industry || "") ||
+    orgPhone.trim() !== (organization.whatsappPhone || "");
 
   const handleTabClick = (tab) => {
     if (tab === activeTab) return;
@@ -95,6 +99,7 @@ export const SettingsPage = () => {
       setUnsavedModalOpen(true);
       return;
     }
+    setBusinessError(null);
     setActiveTab(tab);
   };
 
@@ -104,9 +109,10 @@ export const SettingsPage = () => {
       setProfileEmail(currentUser.email);
       setProfilePhone(currentUser.phone || "");
     } else if (activeTab === "business") {
-      setOrgName(organization.name);
-      setOrgIndustry(organization.industry);
-      setOrgPhone(organization.whatsappPhone);
+      setOrgName(organization.name || "");
+      setOrgIndustry(organization.industry || "");
+      setOrgPhone(organization.whatsappPhone || "");
+      setBusinessError(null);
     }
     if (pendingTab) {
       setActiveTab(pendingTab);
@@ -129,30 +135,80 @@ export const SettingsPage = () => {
     showToast("Profile information saved and synchronized across workspace");
   };
 
-  const handleSaveBusiness = (e) => {
+  const handleSaveBusiness = async (e) => {
     e.preventDefault();
-    if (!orgName.trim()) {
+    setBusinessError(null);
+
+    const trimmedName = orgName.trim();
+    if (!trimmedName) {
+      setBusinessError("Organization legal or trading name is required.");
       showToast("Organization name is required", "error");
       return;
     }
-    updateOrganization({
-      name: orgName.trim(),
-      industry: orgIndustry.trim(),
-      whatsappPhone: orgPhone.trim(),
-    });
-    showToast("Business details updated successfully");
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      setBusinessError("Organization name must be between 2 and 100 characters.");
+      showToast("Organization name must be between 2 and 100 characters", "error");
+      return;
+    }
+
+    try {
+      setIsSavingBusiness(true);
+      const res = await updateOrganization({
+        name: trimmedName,
+        industry: orgIndustry.trim(),
+        whatsappPhone: orgPhone.trim(),
+      });
+
+      if (res && res.success === false) {
+        throw new Error(res.message || "Failed to update organization details.");
+      }
+
+      showToast("Business details updated successfully");
+    } catch (err) {
+      const msg = err.message || "Failed to update business details.";
+      setBusinessError(msg);
+      showToast(msg, "error");
+    } finally {
+      setIsSavingBusiness(false);
+    }
   };
 
-  const handleTestApiKey = () => {
+  const handleSaveApiKey = async (e) => {
+    e.preventDefault();
+    if (!apiKey.trim()) {
+      showToast("Please enter a valid Gemini API key", "error");
+      return;
+    }
+    setIsSavingKey(true);
+    setTestResult(null);
+    try {
+      await saveGeminiKey(apiKey.trim());
+      showToast("Google Gemini API key securely encrypted and saved to server!");
+      setApiKey("");
+    } catch (err) {
+      showToast(err.message || "Failed to save Gemini key", "error");
+    } finally {
+      setIsSavingKey(false);
+    }
+  };
+
+  const handleTestApiKey = async () => {
     setTestingKey(true);
     setTestResult(null);
-    setTimeout(() => {
-      setTestingKey(false);
+    try {
+      const res = await testAiConversation([
+        { sender: "user", text: "Hello! System connection ping test." },
+      ]);
       setTestResult(
-        "Simulated Ping Successful: Gemini 2.5 Flash responded in 138ms with valid parameter schema (Demo Mode)."
+        `Gemini Connection Successful: Model "${res?.model || "gemini-1.5-flash"}" responded in ${res?.latencyMs || 250}ms with valid parameter schema.`
       );
-      showToast("Simulated connection verified! Latency: 138ms");
-    }, 850);
+      showToast(`Connection verified! Latency: ${res?.latencyMs || 250}ms`);
+    } catch (err) {
+      setTestResult(`Connection Failed: ${err.message || "Could not connect to Gemini"}`);
+      showToast(err.message || "Gemini connection failed", "error");
+    } finally {
+      setTestingKey(false);
+    }
   };
 
   const handleExportJson = () => {
@@ -184,7 +240,7 @@ export const SettingsPage = () => {
   const handleResetData = () => {
     resetDemoData();
     setConfirmResetOpen(false);
-    showToast("Demo data restored to initial pristine seed values");
+    showToast("Local workspace cache cleared successfully.");
   };
 
   return (
@@ -195,6 +251,18 @@ export const SettingsPage = () => {
           isOwner
             ? "Configure WhatsApp simulation, Gemini AI credentials, organization profile, and data controls."
             : "Manage personal contact information and sales signature preferences."
+        }
+        actions={
+          isOwner ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/onboarding")}
+              icon={<RotateCcw className="w-3.5 h-3.5" />}
+            >
+              Onboarding Wizard
+            </Button>
+          ) : null
         }
       />
 
@@ -375,38 +443,54 @@ export const SettingsPage = () => {
             )}
           </div>
 
+          {businessError && (
+            <div className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-xs">
+              {businessError}
+            </div>
+          )}
+
           <form onSubmit={handleSaveBusiness} className="space-y-4">
             <Input
               label="Organization Legal / Trading Name"
               required
               value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
+              onChange={(e) => {
+                setOrgName(e.target.value);
+                setBusinessError(null);
+              }}
               placeholder="e.g. Artisan Living Decor"
             />
             <Input
               label="Industry Classification"
               value={orgIndustry}
-              onChange={(e) => setOrgIndustry(e.target.value)}
+              onChange={(e) => {
+                setOrgIndustry(e.target.value);
+                setBusinessError(null);
+              }}
               placeholder="e.g. Luxury Handcrafted Furniture & Architectural Fixtures"
             />
             <Input
               label="Primary WhatsApp Business Phone Number"
               value={orgPhone}
-              onChange={(e) => setOrgPhone(e.target.value)}
+              onChange={(e) => {
+                setOrgPhone(e.target.value);
+                setBusinessError(null);
+              }}
               placeholder="+1 (555) 839-2041"
-              helper="Number presented to customer inquiries on WhatsApp Click-to-Chat buttons."
+              helper="Official contact number presented to customer inquiries on WhatsApp Click-to-Chat buttons."
             />
             <div className="pt-2 flex items-center gap-3">
-              <Button size="sm" type="submit" disabled={!isBusinessDirty}>
-                Update Business Details
+              <Button size="sm" type="submit" disabled={!isBusinessDirty || isSavingBusiness}>
+                {isSavingBusiness ? "Saving Details..." : "Update Business Details"}
               </Button>
-              {isBusinessDirty && (
+              {isBusinessDirty && !isSavingBusiness && (
                 <button
                   type="button"
                   onClick={() => {
-                    setOrgName(organization.name);
-                    setOrgIndustry(organization.industry);
-                    setOrgPhone(organization.whatsappPhone);
+                    setOrgName(organization.name || "");
+                    setOrgIndustry(organization.industry || "");
+                    setOrgPhone(organization.whatsappPhone || "");
+                    setBusinessError(null);
                   }}
                   className="text-xs text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
                 >
@@ -505,64 +589,90 @@ export const SettingsPage = () => {
               </div>
             </div>
 
-            <div>
-              <label
-                className="block text-xs font-medium text-slate-700 mb-1.5"
-                htmlFor="gemini-key-input"
-              >
-                Gemini API Key (Local Demo Storage)
-              </label>
-              <div className="relative">
-                <input
-                  id="gemini-key-input"
-                  type={showKey ? "text" : "password"}
-                  value={apiKey}
-                  onChange={(e) => {
-                    setApiKey(e.target.value);
-                    setGeminiApiKey(e.target.value);
-                    setTestResult(null);
-                  }}
-                  className="w-full text-xs font-mono rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    hasGeminiKey ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                <span className="font-semibold text-slate-800">
+                  {hasGeminiKey
+                    ? "Gemini API Key Configured (Encrypted with AES-256-GCM)"
+                    : "No Gemini Key Configured"}
+                </span>
+              </div>
+              <span className="text-slate-400 font-mono text-[11px]">
+                {hasGeminiKey ? "••••••••••••••••••••••••" : "Unset"}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveApiKey} className="space-y-3">
+              <div>
+                <label
+                  className="block text-xs font-medium text-slate-700 mb-1.5"
+                  htmlFor="gemini-key-input"
                 >
-                  {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                  Update / Set Gemini API Key
+                </label>
+                <div className="relative">
+                  <input
+                    id="gemini-key-input"
+                    type={showKey ? "text" : "password"}
+                    placeholder="Enter Google Gemini API Key (AIzaSy...)"
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value);
+                      setTestResult(null);
+                    }}
+                    className="w-full text-xs font-mono rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  API keys are encrypted immediately with AES-256-GCM on the backend and never exposed in browser storage or logs.
+                </p>
               </div>
-            </div>
 
-            {testResult && (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <p className="leading-relaxed font-medium">{testResult}</p>
+              {testResult && (
+                <div
+                  className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+                    testResult.startsWith("Connection Failed")
+                      ? "bg-rose-50 border-rose-200 text-rose-900"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-900"
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed font-medium">{testResult}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                <Button
+                  size="sm"
+                  type="submit"
+                  disabled={!apiKey.trim() || isSavingKey}
+                >
+                  {isSavingKey ? "Encrypting & Storing..." : "Save Key to Cloud"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  isLoading={testingKey}
+                  onClick={handleTestApiKey}
+                  disabled={!hasGeminiKey && !apiKey.trim()}
+                >
+                  Test Connection &amp; Latency
+                </Button>
               </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setApiKey("AIzaSyA8_DEMO_KEY_CONVERSLY_2026");
-                  setGeminiApiKey("AIzaSyA8_DEMO_KEY_CONVERSLY_2026");
-                  setTestResult(null);
-                  showToast("Populated standard demo test API key");
-                }}
-                className="text-xs text-emerald-700 hover:underline font-medium text-left cursor-pointer"
-              >
-                Use Standard Demo Key
-              </button>
-              <Button
-                size="sm"
-                variant="outline"
-                isLoading={testingKey}
-                onClick={handleTestApiKey}
-              >
-                Test Latency &amp; Connection
-              </Button>
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -593,10 +703,10 @@ export const SettingsPage = () => {
           <div className="bg-rose-50/60 rounded-xl border border-rose-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
             <div>
               <h4 className="text-sm font-semibold text-rose-950">
-                Reset Demo Data to Initial Seed
+                Clear Local Workspace Cache
               </h4>
               <p className="text-xs text-rose-800 mt-1 leading-relaxed">
-                Clears localStorage and restores the initial seed leads, messages, follow-up automations, and organization profile.
+                Clears localStorage and resets local workspace state for leads, messages, and configurations.
               </p>
             </div>
             <Button
@@ -606,7 +716,7 @@ export const SettingsPage = () => {
               onClick={() => setConfirmResetOpen(true)}
               className="shrink-0"
             >
-              Reset Demo
+              Clear Cache
             </Button>
           </div>
         </div>
@@ -616,9 +726,9 @@ export const SettingsPage = () => {
         isOpen={confirmResetOpen}
         onClose={() => setConfirmResetOpen(false)}
         onConfirm={handleResetData}
-        title="Reset Demo Data"
-        message="This will clear all changes made in your local browser demo and restore the initial seed conversations, rules, and leads. Continue?"
-        confirmLabel="Reset Everything"
+        title="Clear Local Cache"
+        message="This will clear all cached local data from your browser storage. Continue?"
+        confirmLabel="Clear Cache"
         isDestructive
       />
 

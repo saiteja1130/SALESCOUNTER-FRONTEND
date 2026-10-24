@@ -10,7 +10,7 @@ import { useToast } from "../../context/ToastContext";
 import { Plus, Download, Search, X, Filter, RotateCcw } from "lucide-react";
 
 const LeadsPage = () => {
-  const { filteredLeads, teamMembers } = useApp();
+  const { filteredLeads, teamMembers, entitlementUsage } = useApp();
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -19,6 +19,9 @@ const LeadsPage = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState(null);
+
+  const todayCount = entitlementUsage?.dailyLeads?.todayCount ?? 0;
+  const maxLimit = entitlementUsage?.dailyLeads?.maxLimit ?? 30;
 
   const processedLeads = filteredLeads.filter((l) => {
     const q = search.trim().toLowerCase();
@@ -32,8 +35,15 @@ const LeadsPage = () => {
 
     if (!matchesSearch) return false;
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
-    if (assigneeFilter !== "all" && l.assignedToId !== assigneeFilter)
-      return false;
+
+    if (assigneeFilter !== "all") {
+      const repId = l.assignedToId?._id || l.assignedToId;
+      if (assigneeFilter === "unassigned") {
+        if (repId) return false;
+      } else if (repId !== assigneeFilter) {
+        return false;
+      }
+    }
     return true;
   });
 
@@ -63,9 +73,10 @@ const LeadsPage = () => {
     showToast(`Exported ${processedLeads.length} leads to CSV`);
   };
 
-  const selectedAssigneeName = teamMembers.find(
-    (m) => m.id === assigneeFilter
-  )?.name;
+  const selectedAssigneeName =
+    assigneeFilter === "unassigned"
+      ? "Unassigned"
+      : teamMembers.find((m) => m.id === assigneeFilter)?.name;
 
   return (
     <div className="space-y-6 pb-12">
@@ -81,6 +92,9 @@ const LeadsPage = () => {
         }
         actions={
           <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-xs bg-blue-50 text-blue-800 font-semibold px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs">
+              {todayCount} / {maxLimit} Leads Today · Resets 12 AM IST
+            </span>
             <Button
               variant="outline"
               size="sm"
@@ -156,11 +170,14 @@ const LeadsPage = () => {
               className="w-full text-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-colors cursor-pointer"
             >
               <option value="all">All Assigned Reps</option>
-              {teamMembers.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name} ({member.role === "owner" ? "Sales Manager" : "Sales Rep"})
-                </option>
-              ))}
+              <option value="unassigned">Unassigned Leads</option>
+              {teamMembers
+                .filter((member) => member.role !== "owner" && member.status !== "disabled")
+                .map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name} (Sales Rep)
+                  </option>
+                ))}
             </select>
           </div>
         </div>

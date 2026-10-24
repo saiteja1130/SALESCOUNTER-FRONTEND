@@ -17,6 +17,9 @@ import { FollowUpsPage } from "./pages/owner/FollowUpsPage";
 import { CampaignsPage } from "./pages/owner/CampaignsPage";
 import { SettingsPage } from "./pages/owner/SettingsPage";
 
+import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
+import { AcceptInvitePage } from "./pages/auth/AcceptInvitePage";
+
 // Admin platform pages
 import { AdminOverviewPage } from "./pages/admin/AdminOverviewPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
@@ -25,33 +28,69 @@ import { AdminCampaignsPage } from "./pages/admin/AdminCampaignsPage";
 import { AdminActivityPage } from "./pages/admin/AdminActivityPage";
 import { AdminSettingsPage } from "./pages/admin/AdminSettingsPage";
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+const ProtectedRoute = ({ children, requireResolvedOnboarding = true }) => {
+  const { role, user, organization, isAuthenticated, isInitializing } = useAuth();
+  if (isInitializing) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  // Standalone platform admins go to admin panel
+  if (user?.role === "admin" || role === "admin") {
+    return children;
+  }
+
+  // Non-owners (salespersons) bypass onboarding directly
+  if (role !== "owner") {
+    return children;
+  }
+
+  // For owners, enforce onboarding completion before accessing main dashboard
+  if (requireResolvedOnboarding) {
+    const onboardingStatus = organization?.onboarding?.status;
+    const isResolved = onboardingStatus === "completed" || onboardingStatus === "skipped";
+    if (!isResolved) {
+      return <Navigate to="/onboarding" replace />;
+    }
+  }
+
   return children;
 };
 
 const RootRedirect = () => {
-  const { role, isAuthenticated } = useAuth();
+  const { role, user, organization, isAuthenticated, isInitializing } = useAuth();
+  if (isInitializing) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  const onboardingDone =
-    localStorage.getItem("conversly_onboarding_completed") === "true" ||
-    localStorage.getItem("conversly_qr_connected_v2") === "true";
+  if (user?.role === "admin" || role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+  if (role === "salesperson") {
+    return <Navigate to="/my-dashboard" replace />;
+  }
 
-  if (!onboardingDone) {
+  // Organization owner onboarding check from backend organization model
+  const onboardingStatus = organization?.onboarding?.status;
+  const isResolved = onboardingStatus === "completed" || onboardingStatus === "skipped";
+
+  if (!isResolved) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  return (
-    <Navigate
-      to={role === "salesperson" ? "/my-dashboard" : "/dashboard"}
-      replace
-    />
-  );
+  return <Navigate to="/dashboard" replace />;
 };
 
 function App() {
@@ -67,6 +106,8 @@ function App() {
               {/* Auth & Onboarding */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/accept-invite" element={<AcceptInvitePage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
 
               {/* Customer Workspace (AppShell) */}

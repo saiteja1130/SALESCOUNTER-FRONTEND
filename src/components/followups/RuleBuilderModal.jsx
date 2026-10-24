@@ -27,6 +27,7 @@ export const RuleBuilderModal = ({
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(true);
   const [quietHoursStart, setQuietHoursStart] = useState("21:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("08:00");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -56,45 +57,59 @@ export const RuleBuilderModal = ({
     }
   }, [isOpen, initialRule, mode]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!title.trim() || !messageTemplate.trim()) {
       showToast("Rule title and message template are required", "error");
       return;
     }
-    if (mode === "edit" && initialRule) {
-      updateFollowUpRule(initialRule.id, {
-        title: title.trim(),
-        triggerCondition,
-        delayHours: Number(delayHours),
-        targetStatus,
-        messageTemplate: messageTemplate.trim(),
-        actionType,
-        quietHoursEnabled,
-        quietHoursStart,
-        quietHoursEnd,
-      });
-      showToast(`Updated follow-up rule "${title.trim()}"`);
-    } else {
-      addFollowUpRule({
-        title: title.trim(),
-        triggerCondition,
-        delayHours: Number(delayHours),
-        targetStatus,
-        messageTemplate: messageTemplate.trim(),
-        actionType,
-        quietHoursEnabled,
-        quietHoursStart,
-        quietHoursEnd,
-        isActive: true,
-      });
-      showToast(
-        mode === "duplicate"
-          ? `Created duplicate rule "${title.trim()}"`
-          : "Automated follow-up rule created"
-      );
+
+    try {
+      setIsSubmitting(true);
+      if (mode === "edit" && initialRule) {
+        const res = await updateFollowUpRule(initialRule.id, {
+          title: title.trim(),
+          triggerCondition,
+          delayHours: Number(delayHours),
+          targetStatus,
+          messageTemplate: messageTemplate.trim(),
+          actionType,
+          quietHoursEnabled,
+          quietHoursStart,
+          quietHoursEnd,
+        });
+        if (res && res.success === false) {
+          throw new Error(res.message || "Failed to update rule.");
+        }
+        showToast(`Updated follow-up rule "${title.trim()}"`);
+      } else {
+        const res = await addFollowUpRule({
+          title: title.trim(),
+          triggerCondition,
+          delayHours: Number(delayHours),
+          targetStatus,
+          messageTemplate: messageTemplate.trim(),
+          actionType,
+          quietHoursEnabled,
+          quietHoursStart,
+          quietHoursEnd,
+          isActive: true,
+        });
+        if (res && res.success === false) {
+          throw new Error(res.message || "Failed to create rule.");
+        }
+        showToast(
+          mode === "duplicate"
+            ? `Created duplicate rule "${title.trim()}"`
+            : `Automated follow-up rule "${title.trim()}" created`
+        );
+      }
+      onClose();
+    } catch (err) {
+      showToast(err.message || "Failed to save follow-up rule", "error");
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
 
   const getModalTitle = () => {
@@ -104,6 +119,7 @@ export const RuleBuilderModal = ({
   };
 
   const getButtonLabel = () => {
+    if (isSubmitting) return "Saving Rule...";
     if (mode === "edit") return "Save Rule Changes";
     if (mode === "duplicate") return "Create Duplicate Rule";
     return "Save Automation Rule";
@@ -118,10 +134,10 @@ export const RuleBuilderModal = ({
       maxWidth="md"
       footer={
         <div className="flex gap-2 justify-end w-full">
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSubmit}>
+          <Button size="sm" onClick={handleSubmit} disabled={isSubmitting}>
             {getButtonLabel()}
           </Button>
         </div>

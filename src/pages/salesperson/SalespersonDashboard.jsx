@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { MetricCard } from "../../components/ui/MetricCard";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -25,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 const SalespersonDashboard = () => {
   const { currentUser } = useAuth();
   const { filteredLeads, scheduledFollowUps, triggerScheduledNow } = useApp();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [selectedLead, setSelectedLead] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -32,6 +34,7 @@ const SalespersonDashboard = () => {
   const [leadToEdit, setLeadToEdit] = useState(null);
   const [timeRange, setTimeRange] = useState("7d");
   const [confirmTask, setConfirmTask] = useState(null);
+  const [isTriggering, setIsTriggering] = useState(false);
 
   const myAssignedLeads = filteredLeads;
   const waitingForMe = [...myAssignedLeads]
@@ -59,10 +62,18 @@ const SalespersonDashboard = () => {
     setDrawerOpen(true);
   };
 
-  const handleConfirmTrigger = () => {
+  const handleConfirmTrigger = async () => {
     if (!confirmTask) return;
-    triggerScheduledNow(confirmTask.id);
-    setConfirmTask(null);
+    try {
+      setIsTriggering(true);
+      const res = await triggerScheduledNow(confirmTask.id);
+      showToast(res?.message || "Follow-up message dispatched immediately.");
+    } catch (err) {
+      showToast(err.message || "Failed to trigger follow-up message.", "error");
+    } finally {
+      setIsTriggering(false);
+      setConfirmTask(null);
+    }
   };
 
   const timeRangeLabels = {
@@ -420,11 +431,12 @@ const SalespersonDashboard = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => setConfirmTask(null)}
+                disabled={isTriggering}
               >
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleConfirmTrigger}>
-                Confirm &amp; Send WhatsApp Message
+              <Button size="sm" onClick={handleConfirmTrigger} disabled={isTriggering}>
+                {isTriggering ? "Sending Message..." : "Confirm & Send WhatsApp Message"}
               </Button>
             </div>
           }

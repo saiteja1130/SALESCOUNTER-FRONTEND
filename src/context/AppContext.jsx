@@ -1,18 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import {
-  SEED_LEADS,
-  SEED_MESSAGES,
-  SEED_USERS,
-  SEED_ORG,
-  SEED_FOLLOW_UP_RULES,
-  SEED_SCHEDULED_FOLLOW_UPS,
-  SEED_CAMPAIGNS,
-  SEED_AI_CONFIG,
-  SEED_ADMIN_ORGS,
-  SEED_ACTIVITY_LOGS
-} from "../data/seedData";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "./AuthContext";
-const AppContext = createContext(void 0);
+import { apiClient } from "../api/client";
+
+const AppContext = createContext(undefined);
+
 const STORAGE_KEYS = {
   LEADS: "conversly_leads_v2",
   MESSAGES: "conversly_messages_v2",
@@ -27,6 +18,26 @@ const STORAGE_KEYS = {
   QR: "conversly_qr_connected_v2",
   GEMINI_KEY: "conversly_gemini_key_v2"
 };
+
+const EMPTY_AI_CONFIG = {
+  companyName: "",
+  tone: "Professional & Courteous",
+  welcomeMessage: "Hello! Welcome to our WhatsApp service. How can we assist you today?",
+  services: [],
+  rules: [],
+  fieldsToCollect: [],
+  restrictedFields: [],
+  documents: [],
+  products: []
+};
+
+const EMPTY_ORG = {
+  name: "",
+  industry: "",
+  timezone: "Asia/Kolkata",
+  logo: ""
+};
+
 const normalizeLeadStatus = (raw) => {
   if (raw === "Contacted") return "Interested";
   if (raw === "Follow-up" || raw === "in-followup") return "In-followup";
@@ -39,130 +50,96 @@ const normalizeLeadStatus = (raw) => {
   }
   return "Interested";
 };
+
 const AppProvider = ({ children }) => {
-  const { currentUser, role, salespersonCanViewAllLeads } = useAuth();
-  const [leads, setLeads] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.LEADS);
-      const rawLeads = saved ? JSON.parse(saved) : SEED_LEADS;
-      return rawLeads.map((l) => ({
-        ...l,
-        status: normalizeLeadStatus(l.status)
-      }));
-    } catch {
-      return SEED_LEADS.map((l) => ({
-        ...l,
-        status: normalizeLeadStatus(l.status)
-      }));
-    }
+  const {
+    currentUser,
+    role,
+    salespersonCanViewAllLeads,
+    isAuthenticated,
+    organization: authOrganization,
+    updateOrganizationState,
+  } = useAuth();
+
+  const [leads, setLeads] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [seatUsage, setSeatUsage] = useState({
+    maxAllowed: 1,
+    currentUsed: 0,
+    available: 1,
+    plan: "trial",
+    repAddons: 0,
   });
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-      return saved ? JSON.parse(saved) : SEED_MESSAGES;
-    } catch {
-      return SEED_MESSAGES;
-    }
+
+  const [followUpRules, setFollowUpRules] = useState([]);
+  const [scheduledFollowUps, setScheduledFollowUps] = useState([]);
+  const [quietHoursSettings, setQuietHoursSettings] = useState({
+    enabled: true,
+    quietStart: "21:00",
+    quietEnd: "08:00",
+    morningReleaseTime: "08:15",
+    timezone: "Asia/Kolkata",
   });
-  const [teamMembers, setTeamMembers] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TEAM);
-      return saved ? JSON.parse(saved) : SEED_USERS.filter((u) => u.organizationId === "org-artisan");
-    } catch {
-      return SEED_USERS.filter((u) => u.organizationId === "org-artisan");
-    }
-  });
-  const [followUpRules, setFollowUpRules] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.RULES);
-      return saved ? JSON.parse(saved) : SEED_FOLLOW_UP_RULES;
-    } catch {
-      return SEED_FOLLOW_UP_RULES;
-    }
-  });
-  const [scheduledFollowUps, setScheduledFollowUps] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.SCHEDULED);
-      return saved ? JSON.parse(saved) : SEED_SCHEDULED_FOLLOW_UPS;
-    } catch {
-      return SEED_SCHEDULED_FOLLOW_UPS;
-    }
-  });
+  const [isFollowUpsLoading, setIsFollowUpsLoading] = useState(false);
+
   const [campaigns, setCampaigns] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CAMPAIGNS);
-      return saved ? JSON.parse(saved) : SEED_CAMPAIGNS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return SEED_CAMPAIGNS;
+      return [];
     }
   });
+
   const [organization, setOrganization] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ORG);
-      return saved ? JSON.parse(saved) : SEED_ORG;
+      return saved ? JSON.parse(saved) : EMPTY_ORG;
     } catch {
-      return SEED_ORG;
+      return EMPTY_ORG;
     }
   });
-  const [aiConfig, setAiConfig] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.AI_CONFIG);
-      if (!saved) return SEED_AI_CONFIG;
-      const parsed = JSON.parse(saved);
-      return {
-        ...SEED_AI_CONFIG,
-        ...parsed,
-        // Explicitly handle nested arrays to avoid overwriting with undefined if not present in old storage
-        services: parsed.services || SEED_AI_CONFIG.services,
-        rules: parsed.rules || SEED_AI_CONFIG.rules,
-        fieldsToCollect: parsed.fieldsToCollect || SEED_AI_CONFIG.fieldsToCollect,
-        restrictedFields: parsed.restrictedFields || SEED_AI_CONFIG.restrictedFields,
-        documents: parsed.documents || SEED_AI_CONFIG.documents,
-        products: parsed.products || SEED_AI_CONFIG.products
-      };
-    } catch {
-      return SEED_AI_CONFIG;
-    }
-  });
+
+  const [aiConfig, setAiConfig] = useState(EMPTY_AI_CONFIG);
+  const [isAiConfigLoading, setIsAiConfigLoading] = useState(false);
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
+
   const [roundRobinEnabled, setRoundRobinEnabledState] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ROUND_ROBIN);
     return saved !== null ? saved === "true" : true;
   });
   const [campaignsAddonUnlocked, setCampaignsAddonUnlockedState] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ADDON);
-    return saved !== null ? saved === "true" : true;
+    return saved !== null ? saved === "true" : false;
   });
   const [qrConnected, setQrConnectedState] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.QR);
-    return saved !== null ? saved === "true" : true;
+    return saved !== null ? saved === "true" : false;
   });
-  const [geminiApiKey, setGeminiApiKey] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.GEMINI_KEY) || "AIzaSyA8_DEMO_KEY_CONVERSLY_2026";
-  });
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.LEADS, JSON.stringify(leads));
-  }, [leads]);
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
   }, [messages]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(teamMembers));
-  }, [teamMembers]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.RULES, JSON.stringify(followUpRules));
-  }, [followUpRules]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SCHEDULED, JSON.stringify(scheduledFollowUps));
-  }, [scheduledFollowUps]);
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CAMPAIGNS, JSON.stringify(campaigns));
   }, [campaigns]);
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ORG, JSON.stringify(organization));
   }, [organization]);
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.AI_CONFIG, JSON.stringify(aiConfig));
-  }, [aiConfig]);
+    if (authOrganization) {
+      setOrganization((prev) => ({
+        ...prev,
+        ...authOrganization,
+        name: authOrganization.name || prev.name,
+        industry: authOrganization.industry || prev.industry || "",
+        whatsappPhone: authOrganization.whatsappPhone || prev.whatsappPhone || "",
+        timezone: authOrganization.timezone || prev.timezone || "Asia/Kolkata",
+        logo: authOrganization.logo || prev.logo || "",
+      }));
+    }
+  }, [authOrganization]);
   useEffect(() => {
     if (!currentUser) return;
     setTeamMembers(
@@ -188,45 +165,218 @@ const AppProvider = ({ children }) => {
     setQrConnectedState(val);
     localStorage.setItem(STORAGE_KEYS.QR, String(val));
   };
+  const [entitlementUsage, setEntitlementUsage] = useState(null);
+
+  const refreshUsage = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await apiClient.get("/entitlements/usage");
+      if (res.success) {
+        setEntitlementUsage(res.usage);
+      }
+    } catch {
+      // Backend offline or starting up
+    }
+  }, [isAuthenticated]);
+
+  const fetchLeads = useCallback(async () => {
+    if (!isAuthenticated) {
+      setLeads([]);
+      return;
+    }
+    try {
+      let allLeads = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const res = await apiClient.get(`/leads?page=${page}&limit=200`);
+        if (res.success && Array.isArray(res.leads)) {
+          allLeads = allLeads.concat(res.leads);
+          totalPages = res.totalPages || res.pagination?.totalPages || 1;
+          page++;
+        } else {
+          break;
+        }
+      } while (page <= totalPages);
+
+      setLeads(allLeads);
+    } catch {
+      // Backend offline or starting up
+    }
+  }, [isAuthenticated]);
+
+  const fetchTeamMembers = useCallback(async () => {
+    if (!isAuthenticated) {
+      setTeamMembers([]);
+      setInvitations([]);
+      return;
+    }
+    try {
+      if (role === "owner" || role === "admin") {
+        const res = await apiClient.get("/team");
+        if (res.success) {
+          if (Array.isArray(res.members)) setTeamMembers(res.members);
+          if (Array.isArray(res.invitations)) setInvitations(res.invitations);
+          if (res.seatUsage) setSeatUsage(res.seatUsage);
+          return;
+        }
+      }
+
+      // Sales representative fallback
+      const res = await apiClient.get("/leads/team-members");
+      if (res.success && Array.isArray(res.teamMembers)) {
+        setTeamMembers(res.teamMembers);
+      }
+    } catch {
+      // Backend offline or starting up
+    }
+  }, [isAuthenticated, role]);
+
+  const fetchAiConfig = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      setIsAiConfigLoading(true);
+      const res = await apiClient.get("/ai/config");
+      if (res.success && res.config) {
+        setAiConfig(res.config);
+        setHasGeminiKey(Boolean(res.config.hasGeminiKey));
+      }
+    } catch {
+      // Backend offline or starting up
+    } finally {
+      setIsAiConfigLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  const fetchFollowUps = useCallback(async () => {
+    if (!isAuthenticated) {
+      setFollowUpRules([]);
+      setScheduledFollowUps([]);
+      return;
+    }
+    try {
+      setIsFollowUpsLoading(true);
+      const [rulesRes, scheduledRes, quietRes] = await Promise.all([
+        apiClient.get("/follow-ups/rules").catch(() => ({ success: false })),
+        apiClient.get("/follow-ups/scheduled").catch(() => ({ success: false })),
+        apiClient.get("/follow-ups/quiet-hours").catch(() => ({ success: false })),
+      ]);
+
+      if (rulesRes?.success && Array.isArray(rulesRes.rules)) {
+        setFollowUpRules(rulesRes.rules);
+      }
+      if (scheduledRes?.success && Array.isArray(scheduledRes.scheduled)) {
+        setScheduledFollowUps(scheduledRes.scheduled);
+      }
+      if (quietRes?.success && quietRes.quietHours) {
+        setQuietHoursSettings(quietRes.quietHours);
+      }
+    } catch {
+      // Backend offline or starting up
+    } finally {
+      setIsFollowUpsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    refreshUsage();
+    fetchLeads();
+    fetchTeamMembers();
+    fetchAiConfig();
+    fetchFollowUps();
+  }, [refreshUsage, fetchLeads, fetchTeamMembers, fetchAiConfig, fetchFollowUps]);
+
   const filteredLeads = React.useMemo(() => {
-    if (role === "owner") {
+    if (role === "owner" || role === "admin") {
       return leads;
     }
     if (salespersonCanViewAllLeads) {
       return leads;
     }
-    return leads.filter((l) => l.assignedToId === currentUser.id);
-  }, [leads, role, currentUser.id, salespersonCanViewAllLeads]);
-  const addLead = (leadData) => {
-    const newId = `lead-${Date.now()}`;
-    const newLead = {
+    return leads.filter((l) => {
+      const repId = l.assignedToId?._id || l.assignedToId;
+      return repId === currentUser?.id || l.email === currentUser?.email;
+    });
+  }, [leads, role, currentUser?.id, currentUser?.email, salespersonCanViewAllLeads]);
+
+  const addLead = async (leadData) => {
+    let serverLead = null;
+    let quotaInfo = null;
+
+    if (isAuthenticated) {
+      const targetAssignee =
+        leadData.assignedToId === "unassigned" || leadData.assignedToId === null || leadData.assignedToId === ""
+          ? "unassigned"
+          : leadData.assignedToId || "round-robin";
+
+      const res = await apiClient.post("/leads", {
+        name: leadData.name,
+        phone: leadData.phone,
+        email: leadData.email,
+        status: leadData.status || "New",
+        source: leadData.source || "WhatsApp Inbound",
+        assignedToId: targetAssignee,
+        collectedData: leadData.collectedData || {},
+        whatsappPhoneNumber: leadData.whatsappPhoneNumber || "+1 (555) 839-2041",
+      });
+      serverLead = res.lead;
+      quotaInfo = res.quota;
+      refreshUsage();
+      fetchTeamMembers();
+    }
+
+    const newId = serverLead?.id || serverLead?._id || `lead-${Date.now()}`;
+    const newLead = serverLead || {
       ...leadData,
       id: newId,
-      createdAt: ( new Date()).toISOString(),
-      lastContactAt: ( new Date()).toISOString(),
-      notes: []
+      createdAt: new Date().toISOString(),
+      lastContactAt: new Date().toISOString(),
+      notes: [],
     };
-    setLeads((prev) => [newLead, ...prev]);
+    setLeads((prev) => [newLead, ...prev.filter((l) => l.id !== newId)]);
+
     const welcomeMsg = {
       id: `msg-${Date.now()}`,
       leadId: newId,
       sender: "ai",
       senderName: "Conversly AI (Artisan Assistant)",
-      text: aiConfig.welcomeMessage.replace("{{lead_name}}", newLead.name),
-      timestamp: ( new Date()).toISOString(),
+      text: (aiConfig?.welcomeMessage || "Hello! Welcome to our WhatsApp service.").replace("{{lead_name}}", newLead.name),
+      timestamp: new Date().toISOString(),
       isDelivered: true,
-      isRead: true
+      isRead: true,
     };
     setMessages((prev) => ({
       ...prev,
-      [newId]: [welcomeMsg]
+      [newId]: [welcomeMsg],
     }));
-    return newLead;
+    return { newLead, quotaInfo };
   };
-  const updateLead = (id, updates) => {
-    setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updates } : l));
+
+  const updateLead = async (id, updates) => {
+    if (isAuthenticated) {
+      try {
+        const res = await apiClient.put(`/leads/${id}`, updates);
+        if (res.success && res.lead) {
+          setLeads((prev) => prev.map((l) => (l.id === id ? res.lead : l)));
+          return res.lead;
+        }
+      } catch (err) {
+        throw err;
+      }
+    }
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
   };
-  const deleteLead = (id) => {
+
+  const deleteLead = async (id) => {
+    if (isAuthenticated) {
+      try {
+        await apiClient.delete(`/leads/${id}`);
+        refreshUsage();
+      } catch (err) {
+        throw err;
+      }
+    }
     setLeads((prev) => prev.filter((l) => l.id !== id));
     setMessages((prev) => {
       const next = { ...prev };
@@ -234,23 +384,69 @@ const AppProvider = ({ children }) => {
       return next;
     });
   };
-  const assignLead = (leadId, assigneeId) => {
+
+  const assignLead = async (leadId, assigneeId) => {
+    if (isAuthenticated) {
+      try {
+        const res = await apiClient.post(`/leads/${leadId}/assign`, {
+          assignedToId: assigneeId,
+        });
+        if (res.success && res.lead) {
+          setLeads((prev) => prev.map((l) => (l.id === leadId ? res.lead : l)));
+          fetchTeamMembers();
+          return res.lead;
+        }
+      } catch (err) {
+        throw err;
+      }
+    }
     const assignee = teamMembers.find((t) => t.id === assigneeId);
-    if (!assignee) return;
-    setLeads(
-      (prev) => prev.map(
-        (l) => l.id === leadId ? {
-          ...l,
-          assignedToId: assignee.id,
-          assignedToName: assignee.name
-        } : l
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId
+          ? {
+              ...l,
+              assignedToId: assignee ? assignee.id : null,
+              assignedToName: assignee ? assignee.name : "Unassigned",
+            }
+          : l
       )
     );
   };
-  const changeLeadStatus = (leadId, status) => {
-    setLeads(
-      (prev) => prev.map((l) => l.id === leadId ? { ...l, status, lastContactAt: ( new Date()).toISOString() } : l)
-    );
+
+  const changeLeadStatus = async (leadId, status) => {
+    return updateLead(leadId, { status });
+  };
+
+  const bulkAssignLeads = async (leadIds, assigneeId) => {
+    if (isAuthenticated) {
+      try {
+        const res = await apiClient.post("/leads/bulk-assign", {
+          leadIds,
+          assignedToId: assigneeId,
+        });
+        fetchLeads();
+        fetchTeamMembers();
+        return res;
+      } catch (err) {
+        throw err;
+      }
+    }
+  };
+
+  const bulkStatusUpdate = async (leadIds, status) => {
+    if (isAuthenticated) {
+      try {
+        const res = await apiClient.post("/leads/bulk-status", {
+          leadIds,
+          status,
+        });
+        fetchLeads();
+        return res;
+      } catch (err) {
+        throw err;
+      }
+    }
   };
   const addLeadNote = (leadId, text) => {
     const newNote = {
@@ -321,73 +517,124 @@ const AppProvider = ({ children }) => {
       [leadId]: [...prev[leadId] || [], aiMsg]
     }));
   };
-  const addFollowUpRule = (ruleData) => {
-    const newRule = {
-      ...ruleData,
-      id: `rule-${Date.now()}`
-    };
-    setFollowUpRules((prev) => [...prev, newRule]);
-  };
-  const updateFollowUpRule = (ruleId, updates) => {
-    setFollowUpRules(
-      (prev) => prev.map((r) => r.id === ruleId ? { ...r, ...updates } : r)
-    );
-  };
-  const toggleFollowUpRule = (ruleId) => {
-    setFollowUpRules(
-      (prev) => prev.map((r) => r.id === ruleId ? { ...r, isActive: !r.isActive } : r)
-    );
-  };
-  const deleteFollowUpRule = (ruleId) => {
-    setFollowUpRules((prev) => prev.filter((r) => r.id !== ruleId));
-  };
-  const triggerScheduledNow = (id) => {
-    setScheduledFollowUps(
-      (prev) => prev.map((s) => s.id === id ? { ...s, status: "completed" } : s)
-    );
-    const target = scheduledFollowUps.find((s) => s.id === id);
-    if (target) {
-      sendMessage(target.leadId, target.messagePreview, "salesperson");
+
+  const addFollowUpRule = async (ruleData) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post("/follow-ups/rules", ruleData);
+      await fetchFollowUps();
+      return res;
     }
   };
-  const postponeScheduled = (id) => {
-    setScheduledFollowUps(
-      (prev) => prev.map((s) => {
-        if (s.id !== id) return s;
-        const current = new Date(s.scheduledTime);
-        current.setHours(current.getHours() + 24);
-        return { ...s, scheduledTime: current.toISOString() };
-      })
-    );
+
+  const updateFollowUpRule = async (ruleId, updates) => {
+    if (isAuthenticated) {
+      const res = await apiClient.put(`/follow-ups/rules/${ruleId}`, updates);
+      await fetchFollowUps();
+      return res;
+    }
   };
-  const cancelScheduled = (id) => {
-    setScheduledFollowUps(
-      (prev) => prev.map((s) => s.id === id ? { ...s, status: "cancelled" } : s)
-    );
+
+  const toggleFollowUpRule = async (ruleId) => {
+    if (isAuthenticated) {
+      const res = await apiClient.patch(`/follow-ups/rules/${ruleId}/status`);
+      await fetchFollowUps();
+      return res;
+    }
   };
-  const inviteTeamMember = (name, email, phone) => {
-    const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().substring(0, 2);
-    const newMember = {
-      id: `user-rep-${Date.now()}`,
-      name,
-      email,
-      phone,
-      role: "salesperson",
-      avatar: initials,
-      assignedLeadsCount: 0,
-      conversionRate: 0,
-      status: "active",
-      organizationId: "org-artisan"
-    };
-    setTeamMembers((prev) => [...prev, newMember]);
+
+  const deleteFollowUpRule = async (ruleId) => {
+    if (isAuthenticated) {
+      const res = await apiClient.delete(`/follow-ups/rules/${ruleId}`);
+      await fetchFollowUps();
+      return res;
+    }
   };
-  const toggleTeamMemberStatus = (userId) => {
-    setTeamMembers(
-      (prev) => prev.map((u) => u.id === userId ? { ...u, status: u.status === "active" ? "paused" : "active" } : u)
-    );
+
+  const saveQuietHours = async (settings) => {
+    if (isAuthenticated) {
+      const res = await apiClient.put("/follow-ups/quiet-hours", settings);
+      if (res.success && res.quietHours) {
+        setQuietHoursSettings(res.quietHours);
+      }
+      return res;
+    }
   };
-  const removeTeamMember = (userId) => {
-    setTeamMembers((prev) => prev.filter((u) => u.id !== userId));
+
+  const triggerScheduledNow = async (id) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post(`/follow-ups/scheduled/${id}/trigger`);
+      await fetchFollowUps();
+      await fetchLeads();
+      return res;
+    }
+  };
+
+  const postponeScheduled = async (id) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post(`/follow-ups/scheduled/${id}/postpone`);
+      await fetchFollowUps();
+      return res;
+    }
+  };
+
+  const cancelScheduled = async (id) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post(`/follow-ups/scheduled/${id}/cancel`);
+      await fetchFollowUps();
+      return res;
+    }
+  };
+  const inviteTeamMember = async (name, email, phone) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post("/team/invitations", { name, email, phone });
+      await fetchTeamMembers();
+      return res;
+    }
+  };
+
+  const resendInvitation = async (invitationId) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post(`/team/invitations/${invitationId}/resend`);
+      await fetchTeamMembers();
+      return res;
+    }
+  };
+
+  const revokeInvitation = async (invitationId) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post(`/team/invitations/${invitationId}/revoke`);
+      await fetchTeamMembers();
+      return res;
+    }
+  };
+
+  const changeTeamMemberStatus = async (userId, newStatus) => {
+    if (isAuthenticated) {
+      const res = await apiClient.patch(`/team/${userId}/status`, { status: newStatus });
+      await fetchTeamMembers();
+      return res;
+    }
+  };
+
+  const toggleTeamMemberStatus = async (userId) => {
+    const member = teamMembers.find((m) => m.id === userId);
+    if (!member) return;
+    const nextStatus = member.status === "active" ? "paused" : "active";
+    return changeTeamMemberStatus(userId, nextStatus);
+  };
+
+  const removeTeamMember = async (userId, options = {}) => {
+    if (isAuthenticated) {
+      const res = await apiClient.delete(`/team/${userId}`, {
+        data: {
+          reassignOption: options.reassignOption || "unassign",
+          reassignTargetId: options.reassignTargetId,
+        },
+      });
+      await fetchTeamMembers();
+      await fetchLeads();
+      return res;
+    }
   };
   const createCampaign = (campaignData) => {
     const newCamp = {
@@ -404,22 +651,84 @@ const AppProvider = ({ children }) => {
   const updateAiConfig = (updates) => {
     setAiConfig((prev) => ({ ...prev, ...updates }));
   };
-  const updateOrganization = (updates) => {
-    setOrganization((prev) => ({ ...prev, ...updates }));
+
+  const saveAiConfig = async (configOverride) => {
+    if (isAuthenticated) {
+      const payload = {
+        ...(configOverride || aiConfig),
+        expectedRevision: (configOverride || aiConfig)?.revision,
+      };
+      const res = await apiClient.put("/ai/config", payload);
+      if (res.success && res.config) {
+        setAiConfig(res.config);
+        setHasGeminiKey(Boolean(res.config.hasGeminiKey));
+        return res.config;
+      }
+    }
+  };
+
+  const publishAiConfig = async () => {
+    if (isAuthenticated) {
+      const res = await apiClient.post("/ai/publish");
+      if (res.success && res.config) {
+        setAiConfig(res.config);
+        setHasGeminiKey(Boolean(res.config.hasGeminiKey));
+        return res.config;
+      }
+    }
+  };
+
+  const testAiConversation = async (messages, configOverride) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post("/ai/test", {
+        config: configOverride || aiConfig,
+        messages,
+      });
+      return res.result;
+    }
+  };
+
+  const saveGeminiKey = async (apiKey) => {
+    if (isAuthenticated) {
+      const res = await apiClient.post("/ai/gemini-key", { apiKey });
+      if (res.success) {
+        setHasGeminiKey(true);
+        try {
+          localStorage.removeItem(STORAGE_KEYS.GEMINI_KEY);
+        } catch {}
+        return res;
+      }
+    }
+  };
+
+  const updateOrganization = async (updates) => {
+    if (isAuthenticated) {
+      const res = await apiClient.patch("/organization", updates);
+      if (res.success && res.organization) {
+        setOrganization(res.organization);
+        if (updateOrganizationState) {
+          updateOrganizationState(res.organization);
+        }
+        return res.organization;
+      }
+      return res;
+    } else {
+      setOrganization((prev) => ({ ...prev, ...updates }));
+    }
   };
   const resetDemoData = () => {
     localStorage.clear();
-    setLeads(SEED_LEADS);
-    setMessages(SEED_MESSAGES);
-    setTeamMembers(SEED_USERS.filter((u) => u.organizationId === "org-artisan"));
-    setFollowUpRules(SEED_FOLLOW_UP_RULES);
-    setScheduledFollowUps(SEED_SCHEDULED_FOLLOW_UPS);
-    setCampaigns(SEED_CAMPAIGNS);
-    setOrganization(SEED_ORG);
-    setAiConfig(SEED_AI_CONFIG);
+    setLeads([]);
+    setMessages({});
+    setTeamMembers([]);
+    setFollowUpRules([]);
+    setScheduledFollowUps([]);
+    setCampaigns([]);
+    setOrganization(EMPTY_ORG);
+    setAiConfig(EMPTY_AI_CONFIG);
     setRoundRobinEnabledState(true);
-    setCampaignsAddonUnlockedState(true);
-    setQrConnectedState(true);
+    setCampaignsAddonUnlockedState(false);
+    setQrConnectedState(false);
   };
   return (
     <AppContext.Provider
@@ -433,13 +742,13 @@ const AppProvider = ({ children }) => {
         campaigns,
         organization,
         aiConfig,
-        adminOrgs: SEED_ADMIN_ORGS,
-        activityLogs: SEED_ACTIVITY_LOGS,
+        adminOrgs: [],
+        activityLogs: [],
         roundRobinEnabled,
         campaignsAddonUnlocked,
+        entitlementUsage,
+        refreshUsage,
         qrConnected,
-        geminiApiKey,
-        setGeminiApiKey,
         setQrConnected,
         setRoundRobinEnabled,
         setCampaignsAddonUnlocked,
@@ -447,6 +756,10 @@ const AppProvider = ({ children }) => {
         updateLead,
         deleteLead,
         assignLead,
+        bulkAssignLeads,
+        bulkStatusUpdate,
+        fetchLeads,
+        fetchTeamMembers,
         changeLeadStatus,
         addLeadNote,
         toggleAiHandling,
@@ -456,14 +769,30 @@ const AppProvider = ({ children }) => {
         updateFollowUpRule,
         toggleFollowUpRule,
         deleteFollowUpRule,
+        saveQuietHours,
+        quietHoursSettings,
+        isFollowUpsLoading,
+        fetchFollowUps,
         triggerScheduledNow,
         postponeScheduled,
         cancelScheduled,
+        invitations,
+        seatUsage,
         inviteTeamMember,
+        resendInvitation,
+        revokeInvitation,
+        changeTeamMemberStatus,
         toggleTeamMemberStatus,
         removeTeamMember,
         createCampaign,
         updateAiConfig,
+        saveAiConfig,
+        publishAiConfig,
+        testAiConversation,
+        fetchAiConfig,
+        saveGeminiKey,
+        isAiConfigLoading,
+        hasGeminiKey,
         updateOrganization,
         resetDemoData
       }}

@@ -21,20 +21,30 @@ import {
   Info,
   Users,
   CheckCircle2,
+  Mail,
+  Clock,
+  RotateCcw,
+  XCircle,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 
 export const TeamPage = () => {
   const { role, salespersonCanViewAllLeads, setSalespersonCanViewAllLeads } = useAuth();
   const {
     teamMembers,
+    invitations = [],
+    seatUsage,
     roundRobinEnabled,
     setRoundRobinEnabled,
     inviteTeamMember,
+    resendInvitation,
+    revokeInvitation,
+    changeTeamMemberStatus,
     toggleTeamMemberStatus,
     removeTeamMember,
     leads,
-    assignLead,
-    updateLead,
+    fetchTeamMembers,
   } = useApp();
   const { showToast } = useToast();
 
@@ -43,70 +53,91 @@ export const TeamPage = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
+  const [resendingId, setResendingId] = useState(null);
+  const [revokingId, setRevokingId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   const [pendingVisibilityState, setPendingVisibilityState] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
   const [reassignOption, setReassignOption] = useState("reassign");
   const [reassignTargetId, setReassignTargetId] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Hooks must be declared unconditionally at top level
+  // Eligible sales reps for reassignment (exclude the member to delete and EXCLUDE the owner)
+  const eligibleReassignTargets = useMemo(() => {
+    if (!memberToDelete) return [];
+    return teamMembers.filter(
+      (m) => m.id !== memberToDelete.id && m.role !== "owner" && m.status === "active"
+    );
+  }, [teamMembers, memberToDelete]);
+
   const leadsAssignedToMember = useMemo(() => {
     if (!memberToDelete) return [];
-    return leads.filter((l) => l.assignedToId === memberToDelete.id);
+    return leads.filter((l) => {
+      const repId = l.assignedToId?._id || l.assignedToId;
+      return repId === memberToDelete.id;
+    });
   }, [leads, memberToDelete]);
-
-  const otherTeamMembers = useMemo(() => {
-    if (!memberToDelete) return [];
-    return teamMembers.filter((m) => m.id !== memberToDelete.id);
-  }, [teamMembers, memberToDelete]);
 
   if (role !== "owner") {
     return <Unauthorized featureName="Team & Sales Routing" />;
   }
 
-  const totalCount = teamMembers.length;
   const salesReps = teamMembers.filter((m) => m.role === "salesperson");
   const activeReps = salesReps.filter((m) => m.status === "active");
   const pausedReps = salesReps.filter((m) => m.status === "paused");
+  const disabledReps = salesReps.filter((m) => m.status === "disabled");
+  const pendingInvites = invitations.filter((i) => i.status === "pending");
+
+  const totalSeats = seatUsage?.maxAllowed ?? 5;
+  const usedSeats = seatUsage?.currentUsed ?? (activeReps.length + pausedReps.length + pendingInvites.length);
+  const availableSeats = seatUsage?.available ?? Math.max(0, totalSeats - usedSeats);
+  const isSeatLimitReached = availableSeats <= 0;
 
   const initiateDeleteMember = (member) => {
     setMemberToDelete(member);
-    setReassignOption("reassign");
-    const eligibleTargets = teamMembers.filter((m) => m.id !== member.id);
-    const activeTarget = eligibleTargets.find((m) => m.status === "active");
-    setReassignTargetId(activeTarget ? activeTarget.id : eligibleTargets[0]?.id || "");
+    const hasOtherActiveReps = eligibleReassignTargets.length > 0;
+    if (hasOtherActiveReps) {
+      setReassignOption("reassign");
+      setReassignTargetId(eligibleReassignTargets[0].id);
+    } else {
+      setReassignOption("unassign");
+      setReassignTargetId("");
+    }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!memberToDelete) return;
-    if (leadsAssignedToMember.length > 0) {
-      if (reassignOption === "reassign" && reassignTargetId) {
-        const targetMember = teamMembers.find((m) => m.id === reassignTargetId);
-        leadsAssignedToMember.forEach((lead) => {
-          assignLead(lead.id, reassignTargetId);
-        });
+    setIsDeleting(true);
+    try {
+      const res = await removeTeamMember(memberToDelete.id, {
+        reassignOption,
+        reassignTargetId: reassignOption === "reassign" ? reassignTargetId : undefined,
+      });
+
+      if (res?.reassignedCount > 0) {
         showToast(
-          `Reassigned ${leadsAssignedToMember.length} lead${leadsAssignedToMember.length > 1 ? "s" : ""} to ${targetMember?.name || "team member"} and removed ${memberToDelete.name}`
+          `Reassigned ${res.reassignedCount} lead${res.reassignedCount > 1 ? "s" : ""} and removed ${memberToDelete.name}`
+        );
+      } else if (res?.unassignedCount > 0) {
+        showToast(
+          `Unassigned ${res.unassignedCount} lead${res.unassignedCount > 1 ? "s" : ""} and removed ${memberToDelete.name}`
         );
       } else {
-        leadsAssignedToMember.forEach((lead) => {
-          updateLead(lead.id, {
-            assignedToId: undefined,
-            assignedToName: undefined,
-          });
-        });
-        showToast(
-          `Returned ${leadsAssignedToMember.length} lead${leadsAssignedToMember.length > 1 ? "s" : ""} to unassigned pool and removed ${memberToDelete.name}`
-        );
+        showToast(`Removed ${memberToDelete.name} from sales team`);
       }
-    } else {
-      showToast(`Removed ${memberToDelete.name} from sales team`);
+      setMemberToDelete(null);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to remove team member";
+      showToast(msg, "error");
+    } finally {
+      setIsDeleting(false);
     }
-    removeTeamMember(memberToDelete.id);
-    setMemberToDelete(null);
   };
 
-  const handleInvite = (e) => {
+  const handleInvite = async (e) => {
     e.preventDefault();
     setEmailError("");
     const trimmedName = name.trim();
@@ -118,22 +149,72 @@ export const TeamPage = () => {
       return;
     }
 
-    const isDuplicate = teamMembers.some(
-      (m) => m.email.toLowerCase() === trimmedEmail.toLowerCase()
-    );
-    if (isDuplicate) {
-      setEmailError("A team member with this email address is already on the team.");
-      showToast("This email is already registered on your team", "error");
+    if (isSeatLimitReached) {
+      setEmailError(`Seat limit reached (${totalSeats}/${totalSeats} in use). Upgrade plan to invite more.`);
+      showToast("Seat limit reached for your organization", "error");
       return;
     }
 
-    inviteTeamMember(trimmedName, trimmedEmail, trimmedPhone);
-    setName("");
-    setEmail("");
-    setPhone("");
-    setEmailError("");
-    setInviteModalOpen(false);
-    showToast(`Invitation sent to ${trimmedName}. Enrolled in round-robin routing.`);
+    setIsInviting(true);
+    try {
+      await inviteTeamMember(trimmedName, trimmedEmail, trimmedPhone);
+      setName("");
+      setEmail("");
+      setPhone("");
+      setEmailError("");
+      setInviteModalOpen(false);
+      showToast(`Invitation sent to ${trimmedEmail}. A 7-day sign-in link was emailed.`);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to send invitation";
+      setEmailError(msg);
+      showToast(msg, "error");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleResendInvite = async (invitationId, inviteEmail) => {
+    setResendingId(invitationId);
+    try {
+      await resendInvitation(invitationId);
+      showToast(`Refreshed invitation sent to ${inviteEmail}`);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to resend invitation";
+      showToast(msg, "error");
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const handleRevokeInvite = async (invitationId, inviteEmail) => {
+    setRevokingId(invitationId);
+    try {
+      await revokeInvitation(invitationId);
+      showToast(`Invitation for ${inviteEmail} revoked. Seat released.`);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to revoke invitation";
+      showToast(msg, "error");
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const handleToggleStatus = async (member) => {
+    setTogglingId(member.id);
+    const nextStatus = member.status === "active" ? "paused" : "active";
+    try {
+      await changeTeamMemberStatus(member.id, nextStatus);
+      showToast(
+        nextStatus === "active"
+          ? `Resumed routing for ${member.name}. Enrolled in round-robin.`
+          : `Paused routing for ${member.name}. Existing leads preserved.`
+      );
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to update status";
+      showToast(msg, "error");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const handleToggleVisibilityClick = () => {
@@ -142,35 +223,124 @@ export const TeamPage = () => {
     setVisibilityModalOpen(true);
   };
 
-  const handleConfirmVisibilityChange = () => {
-    setSalespersonCanViewAllLeads(pendingVisibilityState);
-    setVisibilityModalOpen(false);
-    showToast(
-      pendingVisibilityState
-        ? "Global lead visibility enabled. Sales reps can view all organization leads."
-        : "Global lead visibility restricted. Sales reps can only view their own assigned leads."
-    );
+  const handleConfirmVisibilityChange = async () => {
+    try {
+      await setSalespersonCanViewAllLeads(pendingVisibilityState);
+      setVisibilityModalOpen(false);
+      showToast(
+        pendingVisibilityState
+          ? "Global lead visibility enabled. Sales reps can view all organization leads."
+          : "Global lead visibility restricted. Sales reps can only view their own assigned leads."
+      );
+    } catch (err) {
+      showToast("Failed to update lead visibility", "error");
+    }
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Sales Team Management"
-        description="Manage sales representatives, automated WhatsApp lead distribution, and workspace access controls."
-        badge={`${totalCount} Members`}
+        description="Manage sales representatives, invitations, seat quotas, and automated WhatsApp lead distribution."
+        badge={`${salesReps.length} Sales Reps`}
         actions={
-          <Button
-            size="sm"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => {
-              setEmailError("");
-              setInviteModalOpen(true);
-            }}
-          >
-            Add Team Member
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
+              onClick={() => fetchTeamMembers()}
+            >
+              Sync
+            </Button>
+            <Button
+              size="sm"
+              icon={<Plus className="w-4 h-4" />}
+              disabled={isSeatLimitReached}
+              onClick={() => {
+                setEmailError("");
+                setInviteModalOpen(true);
+              }}
+              title={isSeatLimitReached ? "Seat limit reached" : "Invite a sales rep"}
+            >
+              Add Team Member
+            </Button>
+          </div>
         }
       />
+
+      {/* Seat Capacity & Plan Usage Banner */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
+                <Users className="w-4 h-4" />
+              </span>
+              <h3 className="text-sm font-semibold text-slate-900">
+                Seat Usage &amp; Capacity
+              </h3>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase tracking-wider">
+                {seatUsage?.plan || "Trial"} Plan
+              </span>
+              {seatUsage?.repAddons > 0 && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  +{seatUsage.repAddons} Add-on Seats
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">
+              Workspace owners are not counted against sales representative seat limits. Active/paused reps and pending invites hold seats.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="text-lg font-bold text-slate-900 tabular-nums">
+                {usedSeats} <span className="text-xs font-normal text-slate-500">/ {totalSeats} Seats</span>
+              </div>
+              <div className="text-xs text-slate-500">
+                {availableSeats > 0 ? (
+                  <span className="text-emerald-600 font-medium">{availableSeats} available</span>
+                ) : (
+                  <span className="text-rose-600 font-medium">No seats remaining</span>
+                )}
+              </div>
+            </div>
+
+            {/* Visual Progress Bar */}
+            <div className="w-32 hidden sm:block">
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    isSeatLimitReached
+                      ? "bg-rose-500"
+                      : usedSeats / totalSeats > 0.8
+                      ? "bg-amber-500"
+                      : "bg-blue-600"
+                  }`}
+                  style={{ width: `${Math.min(100, (usedSeats / Math.max(1, totalSeats)) * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                <span>0</span>
+                <span>{totalSeats} max</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {isSeatLimitReached && (
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-900">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Seat limit reached:</strong> You are currently using all {totalSeats} representative seats. To invite another rep, revoke pending invitations or upgrade your subscription.
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Control Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -277,15 +447,104 @@ export const TeamPage = () => {
         </div>
       </div>
 
+      {/* Pending Invitations Section */}
+      {pendingInvites.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="px-5 py-3.5 border-b border-slate-200 bg-amber-50/40 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Mail className="w-4 h-4 text-amber-600" />
+              <h3 className="font-semibold text-xs text-slate-900 uppercase tracking-wider">
+                Pending Invitations ({pendingInvites.length})
+              </h3>
+              <span className="text-[11px] text-amber-700 font-medium bg-amber-100/70 px-2 py-0.5 rounded-full">
+                Holds {pendingInvites.length} Seat{pendingInvites.length > 1 ? "s" : ""}
+              </span>
+            </div>
+            <span className="text-xs text-slate-500">
+              Links expire after 7 days
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500">
+                  <th className="py-2.5 px-5 font-medium">Invitee</th>
+                  <th className="py-2.5 px-4 font-medium">Role</th>
+                  <th className="py-2.5 px-4 font-medium">Sent Date</th>
+                  <th className="py-2.5 px-4 font-medium">Status</th>
+                  <th className="py-2.5 px-5 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {pendingInvites.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-3 px-5">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={inv.name} size="sm" />
+                        <div>
+                          <div className="font-semibold text-slate-900">{inv.name}</div>
+                          <div className="text-xs text-slate-500">{inv.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="capitalize px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
+                        Sales Representative
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-slate-500">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{new Date(inv.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Awaiting Acceptance
+                      </span>
+                    </td>
+                    <td className="py-3 px-5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={<RotateCcw className={`w-3 h-3 ${resendingId === inv.id ? "animate-spin" : ""}`} />}
+                          disabled={resendingId === inv.id}
+                          onClick={() => handleResendInvite(inv.id, inv.email)}
+                        >
+                          {resendingId === inv.id ? "Sending..." : "Resend"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={<XCircle className="w-3 h-3 text-rose-500" />}
+                          disabled={revokingId === inv.id}
+                          onClick={() => handleRevokeInvite(inv.id, inv.email)}
+                          className="hover:border-rose-200 hover:text-rose-600"
+                        >
+                          {revokingId === inv.id ? "Revoking..." : "Revoke"}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Team Roster Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
           <div>
             <div className="flex items-center gap-2.5">
               <h3 className="font-semibold text-sm text-slate-900">
-                Team Roster ({totalCount})
+                Team Roster ({teamMembers.length})
               </h3>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   {activeReps.length} in Active Routing
@@ -294,6 +553,11 @@ export const TeamPage = () => {
                   <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                     {pausedReps.length} Paused
+                  </span>
+                )}
+                {disabledReps.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                    {disabledReps.length} Disabled
                   </span>
                 )}
               </div>
@@ -321,7 +585,7 @@ export const TeamPage = () => {
           </div>
         </div>
 
-        {salesReps.length === 0 ? (
+        {teamMembers.length === 0 ? (
           <div className="p-8 sm:p-12 text-center bg-slate-50/40">
             <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mx-auto mb-4">
               <Users className="w-6 h-6" />
@@ -330,12 +594,13 @@ export const TeamPage = () => {
               No Sales Representatives Yet
             </h3>
             <p className="mt-1.5 text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-              Add your first sales representative to distribute inbound WhatsApp conversations. When round-robin is turned on, new leads will automatically be assigned sequentially to active reps.
+              Add your first sales representative to distribute inbound WhatsApp conversations. When round-robin is turned on, new leads will automatically rotate sequentially among active reps.
             </p>
             <div className="mt-5">
               <Button
                 size="sm"
                 icon={<Plus className="w-3.5 h-3.5" />}
+                disabled={isSeatLimitReached}
                 onClick={() => {
                   setEmailError("");
                   setInviteModalOpen(true);
@@ -352,10 +617,11 @@ export const TeamPage = () => {
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-medium text-slate-600">
                   <th className="py-3 px-5 font-medium">Team Member</th>
                   <th className="py-3 px-4 font-medium">Role</th>
+                  <th className="py-3 px-4 font-medium">Status</th>
                   <th className="py-3 px-4 text-center font-medium">
                     <div className="flex flex-col items-center">
                       <span>Leads Handled</span>
-                      <span className="text-xs font-normal text-slate-400">All-time</span>
+                      <span className="text-xs font-normal text-slate-400">Current</span>
                     </div>
                   </th>
                   <th className="py-3 px-4 text-center font-medium">
@@ -370,10 +636,10 @@ export const TeamPage = () => {
               <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
                 {teamMembers.map((member) => {
                   const isOwnerMember = member.role === "owner";
-                  const memberAssignedLeads = leads.filter(
-                    (l) => l.assignedToId === member.id
-                  );
-                  // Conversly statuses: "New", "Interested", "In-followup", "Converted", "Lost"
+                  const memberAssignedLeads = leads.filter((l) => {
+                    const repId = l.assignedToId?._id || l.assignedToId;
+                    return repId === member.id;
+                  });
                   const wonCount = memberAssignedLeads.filter(
                     (l) => l.status === "Converted"
                   ).length;
@@ -410,19 +676,44 @@ export const TeamPage = () => {
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="capitalize px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200">
-                          {isOwnerMember ? "Sales Manager" : "Sales Representative"}
+                          {isOwnerMember ? "Workspace Owner" : "Sales Representative"}
                         </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {isOwnerMember ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Active (No Seat)
+                          </span>
+                        ) : member.status === "active" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Active
+                          </span>
+                        ) : member.status === "paused" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Paused
+                          </span>
+                        ) : member.status === "disabled" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                            Disabled
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                            {member.status}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="text-sm font-semibold text-slate-900 tabular-nums">
-                          {memberAssignedLeads.length || member.assignedLeadsCount || 0}
+                          {memberAssignedLeads.length}
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="text-sm font-semibold text-slate-900 tabular-nums">
                           {memberAssignedLeads.length > 0
                             ? Math.round((wonCount / memberAssignedLeads.length) * 100)
-                            : member.conversionRate || 0}
+                            : 0}
                           %
                         </div>
                       </td>
@@ -432,32 +723,24 @@ export const TeamPage = () => {
                             {member.status === "active" ? (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  toggleTeamMemberStatus(member.id);
-                                  showToast(
-                                    `Paused routing for ${member.name}. Existing leads preserved.`
-                                  );
-                                }}
+                                disabled={togglingId === member.id}
+                                onClick={() => handleToggleStatus(member)}
                                 aria-label={`Pause lead routing for ${member.name}`}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors cursor-pointer"
                               >
                                 <Pause className="w-3 h-3 text-amber-500" />
-                                <span>Pause</span>
+                                <span>{togglingId === member.id ? "Pausing..." : "Pause"}</span>
                               </button>
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  toggleTeamMemberStatus(member.id);
-                                  showToast(
-                                    `Resumed lead routing for ${member.name}. Enrolled in round-robin.`
-                                  );
-                                }}
+                                disabled={togglingId === member.id}
+                                onClick={() => handleToggleStatus(member)}
                                 aria-label={`Resume lead routing for ${member.name}`}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors cursor-pointer"
                               >
                                 <Play className="w-3 h-3 text-emerald-600 fill-emerald-600" />
-                                <span>Resume</span>
+                                <span>{togglingId === member.id ? "Resuming..." : "Resume"}</span>
                               </button>
                             )}
                             <button
@@ -473,7 +756,7 @@ export const TeamPage = () => {
                         ) : (
                           <div className="pr-2">
                             <span className="text-xs text-slate-400 font-medium">
-                              Workspace Owner
+                              Organization Owner
                             </span>
                           </div>
                         )}
@@ -490,11 +773,11 @@ export const TeamPage = () => {
           <div className="flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span>
-              <strong>Definitions:</strong> Leads Handled counts all leads assigned to the rep since joining. Conversion represents closed deals out of total handled leads.
+              <strong>Seat Accounting:</strong> Pausing a representative keeps their seat reserved. Removing or revoking releases the seat immediately.
             </span>
           </div>
           <span className="text-slate-400 text-xs">
-            Data updates in real-time as leads advance through sales stages.
+            Leads can be automatically reassigned to other active reps upon removal.
           </span>
         </div>
       </div>
@@ -548,10 +831,10 @@ export const TeamPage = () => {
             <p className="font-medium text-slate-800">What does not change:</p>
             <ul className="list-disc list-inside space-y-1 text-slate-600">
               <li>
-                Sales managers and workspace owners always retain complete visibility across all leads.
+                Workspace owners always retain complete visibility across all leads regardless of this setting.
               </li>
               <li>
-                Representatives still only take over or respond to chats they are assigned to.
+                Representatives still only send replies to chats they are actively assigned to.
               </li>
             </ul>
           </div>
@@ -563,14 +846,16 @@ export const TeamPage = () => {
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
         title="Add Sales Representative"
-        description="Invite a new sales team member to manage and respond to WhatsApp leads."
+        description="Invite a sales team member to manage and respond to inbound WhatsApp leads."
         maxWidth="md"
         footer={
           <div className="flex gap-3 justify-end w-full">
-            <Button variant="outline" onClick={() => setInviteModalOpen(false)}>
+            <Button variant="outline" onClick={() => setInviteModalOpen(false)} disabled={isInviting}>
               Cancel
             </Button>
-            <Button onClick={handleInvite}>Send Invitation &amp; Enroll</Button>
+            <Button onClick={handleInvite} disabled={isInviting || isSeatLimitReached}>
+              {isInviting ? "Sending Invitation..." : "Send Invitation & Reserve Seat"}
+            </Button>
           </div>
         }
       >
@@ -581,6 +866,7 @@ export const TeamPage = () => {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Jordan Hayes"
             required
+            disabled={isInviting}
           />
           <Input
             label="Work Email"
@@ -592,25 +878,28 @@ export const TeamPage = () => {
             }}
             placeholder="jordan@company.com"
             error={emailError}
-            helper="An invitation link with immediate workspace access will be sent."
+            helper="A one-time invitation link will be emailed to this address."
             required
+            disabled={isInviting}
           />
           <Input
             label="WhatsApp Mobile Number (Optional)"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="e.g. +1 (415) 555-0192"
-            helper="Optional direct phone number for internal notifications."
+            helper="Direct phone number for internal team communication."
+            disabled={isInviting}
           />
-          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-900 space-y-2">
+
+          <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-2">
             <div className="flex items-center gap-2 font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Invitation &amp; Routing Behavior</span>
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Invitation &amp; Seat Rules</span>
             </div>
-            <ul className="text-xs space-y-1 list-disc list-inside text-emerald-800/90 leading-relaxed">
-              <li>A user account will be generated immediately with sales representative privileges.</li>
-              <li>If <strong>Round-Robin Routing</strong> is active, this representative is automatically enrolled.</li>
-              <li>You can pause their routing status at any time from this table without deleting the account.</li>
+            <ul className="text-xs space-y-1 list-disc list-inside text-blue-800/90 leading-relaxed">
+              <li>Sending this invitation reserves <strong>1 seat</strong> on your plan.</li>
+              <li>The recipient will receive an email to sign in or create their password.</li>
+              <li>If they don't accept within 7 days or you revoke it, the seat is released automatically.</li>
             </ul>
           </div>
         </form>
@@ -620,7 +909,7 @@ export const TeamPage = () => {
       {memberToDelete && (
         <Modal
           isOpen={Boolean(memberToDelete)}
-          onClose={() => setMemberToDelete(null)}
+          onClose={() => !isDeleting && setMemberToDelete(null)}
           title={
             leadsAssignedToMember.length > 0
               ? "Remove Representative & Reassign Leads"
@@ -629,11 +918,13 @@ export const TeamPage = () => {
           maxWidth="md"
           footer={
             <div className="flex gap-3 justify-end w-full">
-              <Button variant="outline" onClick={() => setMemberToDelete(null)}>
+              <Button variant="outline" onClick={() => setMemberToDelete(null)} disabled={isDeleting}>
                 Cancel
               </Button>
-              <Button variant="danger" onClick={handleConfirmDelete}>
-                {leadsAssignedToMember.length > 0
+              <Button variant="danger" onClick={handleConfirmDelete} disabled={isDeleting}>
+                {isDeleting
+                  ? "Processing..."
+                  : leadsAssignedToMember.length > 0
                   ? reassignOption === "reassign"
                     ? "Reassign Leads & Remove"
                     : "Unassign Leads & Remove"
@@ -653,7 +944,7 @@ export const TeamPage = () => {
                       {leadsAssignedToMember.length > 1 ? "s" : ""}
                     </p>
                     <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                      To prevent customer conversations from falling through the cracks, choose what happens to these leads before removing this representative.
+                      Choose whether to transfer these customer conversations to another active sales rep or return them to the unassigned pool. (The workspace owner cannot be assigned leads).
                     </p>
                   </div>
                 </div>
@@ -688,11 +979,17 @@ export const TeamPage = () => {
                     Choose lead destination:
                   </label>
                   <div
-                    onClick={() => setReassignOption("reassign")}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      reassignOption === "reassign"
-                        ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600"
-                        : "border-slate-200 hover:bg-slate-50"
+                    onClick={() => {
+                      if (eligibleReassignTargets.length > 0) {
+                        setReassignOption("reassign");
+                      }
+                    }}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      eligibleReassignTargets.length === 0
+                        ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
+                        : reassignOption === "reassign"
+                        ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600 cursor-pointer"
+                        : "border-slate-200 hover:bg-slate-50 cursor-pointer"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -700,7 +997,8 @@ export const TeamPage = () => {
                         type="radio"
                         id="option-reassign"
                         name="reassign-choice"
-                        checked={reassignOption === "reassign"}
+                        disabled={eligibleReassignTargets.length === 0}
+                        checked={reassignOption === "reassign" && eligibleReassignTargets.length > 0}
                         onChange={() => setReassignOption("reassign")}
                         className="text-emerald-600 focus:ring-emerald-500"
                       />
@@ -708,26 +1006,25 @@ export const TeamPage = () => {
                         htmlFor="option-reassign"
                         className="text-xs font-medium text-slate-900 cursor-pointer"
                       >
-                        Reassign all leads to another team member (Recommended)
+                        Reassign all leads to another active representative (Recommended)
                       </label>
                     </div>
-                    {reassignOption === "reassign" && (
+                    {reassignOption === "reassign" && eligibleReassignTargets.length > 0 && (
                       <div className="mt-2.5 pl-6">
-                        {otherTeamMembers.length > 0 ? (
-                          <Select
-                            value={reassignTargetId}
-                            onChange={(e) => setReassignTargetId(e.target.value)}
-                            options={otherTeamMembers.map((m) => ({
-                              value: m.id,
-                              label: `${m.name} (${m.role === "owner" ? "Owner" : m.status === "active" ? "Active" : "Paused"})`,
-                            }))}
-                          />
-                        ) : (
-                          <p className="text-xs text-slate-500">
-                            No other team members available. Leads will be returned to unassigned pool.
-                          </p>
-                        )}
+                        <Select
+                          value={reassignTargetId}
+                          onChange={(e) => setReassignTargetId(e.target.value)}
+                          options={eligibleReassignTargets.map((m) => ({
+                            value: m.id,
+                            label: `${m.name} (Active Sales Rep)`,
+                          }))}
+                        />
                       </div>
+                    )}
+                    {eligibleReassignTargets.length === 0 && (
+                      <p className="text-xs text-slate-500 pl-6 mt-1">
+                        No other active sales representatives are available on your team.
+                      </p>
                     )}
                   </div>
 
@@ -756,7 +1053,7 @@ export const TeamPage = () => {
                       </label>
                     </div>
                     <p className="text-xs text-slate-500 pl-6 mt-1">
-                      Leads will be unassigned and available in the inbox for manual claim or re-routing.
+                      Leads will be unassigned and available in the inbox for round-robin rotation or manual claim.
                     </p>
                   </div>
                 </div>
@@ -767,7 +1064,7 @@ export const TeamPage = () => {
                   Are you sure you want to remove <strong>{memberToDelete.name}</strong> from your organization?
                 </p>
                 <p className="text-xs text-slate-500">
-                  This user currently has 0 assigned leads. They will immediately lose access to your Conversly workspace.
+                  This representative currently has 0 assigned leads. Their seat will be freed immediately and their workspace access revoked.
                 </p>
               </div>
             )}

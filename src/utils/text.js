@@ -25,7 +25,7 @@ const APP_TEXT = {
   teamInvited: "Invitation sent to sales team member",
   teamStatusChanged: "Salesperson status updated",
   planUpdated: "Plan subscription updated",
-  demoReset: "Demo data has been reset to initial seed values.",
+  demoReset: "Local workspace cache has been cleared.",
   apiKeyTestSuccess: "Simulated connection test verified! Gemini 2.5 response latency 140ms.",
   qrScanSuccess: "WhatsApp Business account simulated connection active (+1 555-839-2041)."
 };

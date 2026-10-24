@@ -17,7 +17,7 @@ import { useApp } from "../../context/AppContext";
 
 const OnboardingChecklist = () => {
   const navigate = useNavigate();
-  const { qrConnected, geminiApiKey, teamMembers, aiConfig } = useApp();
+  const { qrConnected, hasGeminiKey, teamMembers, aiConfig } = useApp();
   const [collapsed, setCollapsed] = useState(false);
 
   const isAiTrained = Boolean(
@@ -50,10 +50,10 @@ const OnboardingChecklist = () => {
     {
       id: "gemini",
       label: "Gemini AI Model Key",
-      desc: geminiApiKey
-        ? "API Key verified (Gemini 2.5 Flash active)"
+      desc: hasGeminiKey
+        ? "API Key verified (Gemini active & encrypted on server)"
         : "Action needed: Enter Google Gemini API key",
-      done: Boolean(geminiApiKey),
+      done: Boolean(hasGeminiKey),
       icon: <Key className="w-4 h-4" />,
       action: () => navigate("/settings"),
     },
@@ -199,14 +199,24 @@ const OnboardingChecklist = () => {
               : "Configuration Incomplete"}
           </strong>
         </span>
-        <button
-          type="button"
-          onClick={() => navigate("/settings")}
-          className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer focus-visible:underline"
-        >
-          <span>Workspace Settings</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/onboarding")}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer focus-visible:underline"
+          >
+            <span>Onboarding Wizard</span>
+          </button>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={() => navigate("/settings")}
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer focus-visible:underline"
+          >
+            <span>Settings</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
